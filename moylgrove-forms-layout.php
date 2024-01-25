@@ -118,11 +118,19 @@ echo preg_replace_callback(
 if (!$done_submit) { ?>
 		    <input type='submit' id='submit' value='<?= $submit ?>'/>
 <?php }
-?>	
-		<button onclick="makeChanges()" id="makeChangesButton" type="button">Want to change your booking? Click here</button>
-		<p style='clear:both;text-align:center;font-size:small'>Need a hand with this? <a href='mailto:info@moylgrove.wales'>info@moylgrove.wales</a></p>
-	</form>
-	<?php 
+if (!empty($full)) {
+  ?>	
+		  <p style='background-color:orange'>Bookings now closed - email if you need to change</p>
+	  <?php 
+} else {
+  ?>	
+		  <button onclick="makeChanges()" id="makeChangesButton" type="button">Want to change your booking? Click here</button>
+	  <?php 
+  }
+  ?>
+  		  <p style='clear:both;text-align:center;font-size:small'>Need a hand with this? <a href='mailto:info@moylgrove.wales'>info@moylgrove.wales</a></p>
+	  </form>
+  <?php
 }
 
 function moylgrove_send_email(
@@ -276,14 +284,6 @@ function currentBookingState ($row, $seats, $full) {
         ? MG_PAY_STATUS
         : MG_BOOKED_STATUS));
 
-  if (!empty($full)) {
-    if ($seatsBooked == 0) {
-      echo "<h2>$full</h2>";
-      return;
-    } else {
-      echo "<p>$full</p>";
-    }
-  }
   return [
     'seatsBooked'=>$seatsBooked, 
     'paid'=>$paid, 

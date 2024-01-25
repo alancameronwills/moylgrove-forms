@@ -115,19 +115,23 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
     )
 	: []; // No booking or id yet
 
+  // Enable inline HTML - we'll collect it and return it from this function:
+  ob_start();
+
 	$state = currentBookingState($rows[0] ?? null, $seats, $full);
 	// seatsBooked, paid, price, bookingMode, fields
 
   //echo "==A==";
   //var_dump($rows);
   //echo "==" . count($rows) . "==";
-
-  // Enable inline HTML - we'll collect it and return it from this function:
-  ob_start();
   
   if (count($rows) == 0) {
-	// Show fresh booking form:
-    moylgrove_print_form($template, $name, null, $seats, $submit, $full, $prices, $state);
+   	  // Show fresh booking form:
+      if (!empty($full)) {
+        ?><h2 style='background-color:orange'><?= $full ?></h2><?php
+      } else {
+        moylgrove_print_form($template, $name, null, $seats, $submit, $full, $prices, $state);
+      }
   } else {
     foreach ($rows as $row) {
 
