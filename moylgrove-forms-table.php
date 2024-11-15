@@ -31,6 +31,7 @@ function moylgrove_forms_table_shortcode($attributes = [], $content = null)
         'name' => get_queried_object()->post_name ?? "test form", // name of form & template
         'style' => 'html', // html or (plain) text
         'sum' => "adults kids", // columns of which to count up totals
+		'public' => '', // other columns to display even if not logged in
         'debug' => ''
       ],
       $attributes
@@ -69,8 +70,12 @@ function moylgrove_forms_table_shortcode($attributes = [], $content = null)
       $item['timestamp'] = $row->time;
       foreach (array_keys($item) as $k) {
         // Logged in user can see everything; others only see summed columns
-        if ($fullTable || strpos(" $sum ", " $k ") !== false) {
-          $columnheads[$k] = 1;
+        if ($fullTable || strpos(" $sum ", " $k ") !== false || strpos(" $public ", " $k ") !== false ) {
+			if (strpos($k, "#")>1) {
+				// exclude detail menu items
+			} else {
+		        $columnheads[$k] = 1;
+			}
         }
       }
       $items[] = $item;
@@ -94,11 +99,12 @@ function moylgrove_forms_table_shortcode($attributes = [], $content = null)
       $rowid = "";
       foreach ($heads as $head) {
         $cell = str_replace(",", ";", $item[$head] ?? "");
-
-        if (strpos(" $sum ", " $head ") !== false) {
-          $number = (float) $cell;
+        $number = floatval($cell);
+		if ($number < 1E6 && $head != "id" && $head != "timestamp") { // exclude phone numbers
           $sums[$head] = ($sums[$head] ?? 0) + $number;
-          $rowsum += $number;
+		}
+        if (strpos(" $sum ", " $head ") !== false) {
+			$rowsum += $number;
         }
         if ($head == 'id') {
           $cells[] = "<a href='./?id=$cell' target='_blank'>$cell</a>";
@@ -117,7 +123,7 @@ function moylgrove_forms_table_shortcode($attributes = [], $content = null)
     $cells = [];
     foreach ($heads as $head) {
       $v = $sums[$head] ?? "";
-      $cells[] = $v;
+      $cells[] = ($v != 0 ? $v : "");
       //$total += intval($v);
     }
     echo $pp[0] . implode($pp[1], $cells) . $pp[2];

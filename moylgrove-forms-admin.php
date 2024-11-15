@@ -59,6 +59,17 @@ and underneath that a <b>Custom bookings table</b>.</p>
  	 &lt;div class="row">&lt;div>Number of seats (including you):&lt;/div>
 	 	&lt;div>&lt;label>Adults {adults n 0 10}&lt;/label>&lt;/div>&lt;div>
 			&lt;label>Kids {kids n 0 10 ?}&lt;/label>&lt;/div>&lt;/div>
+	{menu}
+	["", "", 2, "&lt;h3>Main Course choices&lt;/h3>"],
+  	["main","turkey",3,"&lt;b>Turkey&lt;/b> and stuffing"],
+	["main","veggie",4,"&lt;b>Vegetarian&lt;/b> cardboard sausage"],
+  	["main","vegan",5,"&lt;b>Vegan&lt;/b> Quorn sausage",],
+  	["", "", 6, "&lt;h3>Dessert choices&lt;/h3>"],
+	["sweet", "crumble", 7, "Spiced apple crumble"],
+	["sweet", "brownie", 8, "Chocolate brownie"],
+  	["","",13, "&lt;h3>Dietary requirements&lt;/h3>"],
+  	["", "gf", 14, "Gluten free"]
+	{/menu}
  	 &lt;div class="row">&lt;div>Your name:&lt;/div>&lt;div>
 	 	&lt;label>first&lt;br>{first}
 		&lt;/label>&lt;label>last&lt;br>{last}&lt;/label>&lt;/div>&lt;/div>
@@ -133,6 +144,16 @@ and underneath that a <b>Custom bookings table</b>.</p>
 		and changed the number of seats.)</dd>
 	<dt><code>{calculation c 30}</code></dt>
 	<dd>Shows how the totalPrice was worked out.</dd>
+	<dt><code>{menu}...{/menu}</code>
+	<dd>Presents the user with menu choices. There can be multiple choices, 
+		e.g. Main course, Dessert. Each choice may each have several options.
+		There's a separate column of choices for each seat booked.<br/>
+		Form of each line - note the comma at the end:<br/>
+	<code>["Radio_button_group","item_id","Name of menu item"],</code><br/>
+	E.g. <code>["dessert","crumble","Apple crumble"],</code><br/>
+	Missing group name is a checkbox: <code>["", "gf", "Gluten free"],</code><br/>
+	Missing item_id is a section head or separator: <code>["", "", "&lt;h3>Dessert choices&lt;/h3>"],</code>
+	</dd>
 </dl>
 <h4>Payment area</h4>
 <dl>

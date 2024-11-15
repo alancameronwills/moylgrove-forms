@@ -79,6 +79,9 @@ echo preg_replace_callback(
         case "n":
           if (isset($matches[3])) {
             $modifier = "min='$matches[3]'";
+			  if ($value < $matches[3]) {
+				  $value = $matches[3];
+			  }			
           }
           if (isset($matches[4])) {
             $modifier .= " max='$matches[4]'";
@@ -128,7 +131,7 @@ if (!empty($full)) {
 	  <?php 
   }
   ?>
-  		  <p style='clear:both;text-align:center;font-size:small'>Need a hand with this? <a href='mailto:info@moylgrove.wales'>info@moylgrove.wales</a></p>
+  		  <p style='clear:both;text-align:center;font-size:small'>Need a hand with booking? <a href='mailto:info@moylgrove.wales'>info@moylgrove.wales</a><br/> Alan 0797 473 9216</p>
 	  </form>
   <?php
 }
@@ -210,6 +213,7 @@ function rewrite_longs($template, $state, $fields)
   ][$bookingMode];
 
 
+  // State - Book a seat || You've booked || You've cancelled || Pay up
   $template2 = preg_replace_callback(
     '#\{state\}(.*?)(?:\|\|(.*?)(?:\|\|(.*?)(?:\|\|(.*?))?)?)?\{/state\}#',
     function ($matches) use($bookingMode, $status_message) {
@@ -225,6 +229,25 @@ function rewrite_longs($template, $state, $fields)
     $template
   );
 
+  // Menu - ["selection","option_id", "Option label"],...
+  $template2 = preg_replace_callback(
+    '#\{menu\}([^¬]*?)\{/menu\}#',
+    function ($matches) use($fields) {
+     	// Encode menu fields, which have # in the name
+ 		$menu_fields_json = "{}";
+		if (is_array($fields)) {
+	    	$menu_fields = array_filter($fields, 
+    	    function ($key) { return strpos($key, "#")!=false;},
+        	2);
+	      	$menu_fields_json = json_encode($menu_fields);
+		}
+
+	    // Send menu field values and menu form
+    	$menu = str_replace(["<br />","</p>\n","\n<p>"], ["","",""], $matches[1]);
+      	return "<div class='menu'><!--[ $menu_fields_json ,  $menu ]--></div>" ;
+    },
+    $template2
+  );
 
   // gt comparison - allows field names or literal numbers
   $template2 = preg_replace_callback(
@@ -335,14 +358,18 @@ function formHeaderStyles($id, $state, $prices, $name)
   				margin-bottom:10px;
 				user-select:none;
 			}
-			 .moylgrove-form .row>div:first-child {
-			 }
 			.moylgrove-form .row label {
 				display:inline-block;
 				margin: 0 10px;
 			 }
-			 .moylgrove-form.readonly input[type=number]::-webkit-outer-spin-button,
-			 .moylgrove-form.readonly input[type=number]::-webkit-inner-spin-button {
+			 .moylgrove-form input[type=number] {
+        		width: 3em;
+       		}
+			.moylgrove-form input.menu-count {
+				display: none;
+			}
+       		.moylgrove-form.readonly input[type=number]::-webkit-outer-spin-button,
+			.moylgrove-form.readonly input[type=number]::-webkit-inner-spin-button {
     			-webkit-appearance: none;
     			margin: 0;
 			}
@@ -350,27 +377,254 @@ function formHeaderStyles($id, $state, $prices, $name)
 			.moylgrove-form.readonly input[type=number] {
     			-moz-appearance:textfield;
 			}
+			.moylgrove-form.readonly .menu {
+				pointer-events: none;
+				user-select: none;
+			}
+			.moylgrove-form.readonly .clearMenuButton {
+				display: none;
+			}
 			.moylgrove-form:not(.readonly) #makeChangesButton {
-        display: none;
-      }
+        		display: none;
+      		}
 			.moylgrove-form input {
     			max-width: calc(100% - 10px);
 			}
-			 .bookings-table tr:last-child {
-				 font-weight:bold;
-			 }
-			 .calculated {
-				 background-color: transparent;
-				 border: 0 !important;
-				 user-select: none;
-			 }
-			 label div {display:inline;}
+      .moylgrove-form input[type='submit'] {
+        border: darkred 2px solid;
+      }
+      .moylgrove-form button {
+        border: darkred 2px solid;
+      }
+      .moylgrove-form input:invalid {
+        background-color:#fffff0;
+        border: red 2px solid;
+      }
+			.bookings-table tr:last-child {
+			 font-weight:bold;
+			}
+			.calculated {
+			 background-color: transparent;
+			 border: 0 !important;
+			 user-select: none;
+			}
+			label div {display:inline;}
+      .moylgrove-paypal {
+			  background-color: dodgerblue !important;
+    	  justify-content: space-around !important;
+    	  align-items: center;
+			  text-align: center;
+    	  font-weight: bold;
+    	  font-size: min(10vw,72pt);
+    	  color: white;
+		  }
+		.moylgrove-paypal-buttons>div>div {
+			display:flex;
+		  align-items: center;
+			margin-top:2vw;
+		}
+    .moylgrove-form .menu {
+      display: grid;
+		width: 100%;
+		justify-content: space-between;
+		column-gap: 4px;
+		font-size: smaller;
+		overflow: hidden;
+    margin: 10px 0;
+    background-color: rgba(200, 255, 255, 0.4);
+    }
+    .moylgrove-form .count {
+      width: 1em;
+      opacity: 0;
+    }
+    .moylgrove-form input[name="places"] {
+      width: 3em;
+    }
+    .moylgrove-form .menu-title {
+      grid-column: 1;
+    }
+    .moylgrove-form .menu-title.option {
+      text-align: end;
+		margin-right: 4px;
+    }
+	.moylgrove-form .clearMenuButton {
+		grid-row:100;
+		grid-column: 2/9;
+	}
+	.moylgrove-form .clearMenuButton > button {
+		font-style: italic;
+    	font-size: small;
+    	padding: 1px;
+    	margin: 0;
+    	opacity: .7;
+    	border-color: grey;
+	}
+		.radio {
+    		position: relative;
+			display:flex;
+			justify-content:center;
+			align-items: center;
+	}
+
+	.menu .radio::before {
+    	content: "";
+    	position: absolute;
+    	background-color: lightgray;
+    	inline-size: 1px;
+    	block-size: 300%;
+    	inset-block-start: -200%;
+    	inset-inline-start: -3px;
+	}
+		
+	.menu-title:not(.option) {
+			border-top: lightgray solid 1px;
+	    	margin-top: 2px;
+    		padding-top: 0;
+			position: relative;
+			z-index: 1;
+		& h3 {
+    		background-color: steelblue;
+			border-top: none;
+		}
+	}
 	</style>
 	<script>
+		
+  function reveal() {
+	jQuery(".moylgrove-form input[type=radio]").prop("required", false);
+    let places =  window.seatCount || 0;
+	if (places==0) jQuery(".moylgrove-form .menu").hide();
+	else jQuery(".moylgrove-form .menu").show(500);
+    let cells = document.querySelectorAll(".radio");
+    for (const cell of cells) {
+      if (+cell.dataset.col > places) {
+        cell.style.display = "none";
+      } else {
+        cell.style.display = "";
+      }
+    }
+	for (let i = 1; i<=places; i++) {
+		jQuery(".required-radio-"+i).prop("required", true);
+	}
+  }
+
+function clearMenu() {
+	jQuery(".moylgrove-form .menu .radio>input").prop( "checked", false );
+}
+		
+function setMenu() {
+  let table = document.querySelector(".menu");
+  let places = 8;
+  let fields = {};
+  let menuMatch = table.innerHTML.match(/<!--([^~]*)-->/);
+  if (!menuMatch) return;
+  let items = [];
+  try {
+    items = JSON.parse(`${menuMatch[1]}`);
+  } catch (e){
+    table.insertAdjacentHTML("beforeend", ""+e);
+    return;
+  }
+  jQuery(".moylgrove-form .menu").hide();
+
+  let rowNumber = 0;
+  for (const item of items) {
+    rowNumber++;
+    if (rowNumber == 1) {
+      // First item is the previous values
+      fields = item;
+      continue;
+    }
+    if (item[1]) {
+      // Radio buttons or checkbox
+      table.insertAdjacentHTML(
+        "beforeend",
+		  // Hidden sum for the item
+        `<div class="menu-title option" style="grid-column:1;grid-row:${rowNumber}">
+            <input type="number" name="#${item[1]}" class="menu-count" value="${fields[item[1]] || ''}">
+            ${item[2]}
+          </div>`,
+      );
+    } else {
+      // header
+      table.insertAdjacentHTML(
+        "beforeend",
+        `<div class="menu-title" style="grid-column:1/${places};grid-row:${rowNumber}">${item[2]}</div>`,
+      );
+    }
+    if (item[1]) {
+      // Radio buttons or checkbox
+      for (let i = 1; i <= places; i++) {
+        table.insertAdjacentHTML(
+          "beforeend",
+          `<div class="radio" data-col="${i}" style="grid-column:${i + 1};grid-row:${rowNumber}">` +
+            (item[0]
+              ? `<input type='radio' name='${item[0]}#${i}' value='${item[1]}'
+               ${fields[`${item[0]}#${i}`] == item[1] ? "checked" :"" } 
+				 ${item[3]=='!' ? `class='required-radio-${i}'` : ""}>`
+              : `<input type='checkbox' name='${item[1]}#${i}' data-group='${item[1]}' 
+              ${fields[`${item[1]}#${i}`] ? "checked" : ""}>`) +
+            `</div>`,
+        );
+      }
+    }
+  }
+
+  for (let i = 1; i <= places; i++) {
+    table.insertAdjacentHTML(
+      "beforeend",
+      `<div class="radio" data-col="${i}" style="grid-column:${i + 1};grid-row:1"><b>Seat ${i}</b></div>`,
+    );
+  }
+  table.insertAdjacentHTML("beforeend", `<div class="clearMenuButton"><button onclick="clearMenu()">Clear menu</button></div>`);
+  table.insertAdjacentHTML("afterend", `<input type="text" name="menuSummary" id="menuSummary" style="display:none">`);
+ 
+  const form = document.querySelector(".moylgrove-form");
+  form.addEventListener(
+    "submit",
+    (event) => {
+		let menu = form.querySelector(".menu");
+	  	// Each menu row (dish) has a hidden count of how many seats selected that dish
+		// We'll zero them all, then count up the ones that are checked
+      	for (const counter of menu.querySelectorAll("input.menu-count")) {
+        	counter.value = "0";
+      	}
+		let seatSelections = [];
+	  	// Radio buttons and checkboxes within the menu
+      	let checkOptions = menu.querySelectorAll(".radio>input");
+      	for (const checkOption of checkOptions) {
+        	if (checkOption.checked) {
+				let [optionName, seat] = checkOption.name.split('#');
+				if (seat <= window.seatCount) {
+					let selectionName = checkOption.type == "checkbox" ? optionName : checkOption.value;
+					// Increment the sum for this menu row, id beginning '#'
+					// (of class menu-count)
+          			let sum = menu.querySelector(`input[name="#${selectionName}"]`);
+          			if (sum) {
+            			sum.value = +sum.value + 1;
+          			}
+					if (!seatSelections[seat]) seatSelections[seat]= [];
+					seatSelections[seat].push (selectionName);
+				}
+        	}
+      	}
+		// 
+		// 
+		let menuSummary = "";
+		for (let i= 1; i<=window.seatCount; i++) {
+			menuSummary += `Seat ${i}: ${seatSelections[i].join(", ")}; <br />\n`;
+		}
+		let ms = document.querySelector("#menuSummary");
+		if (ms) ms.value = menuSummary;
+    },
+    false,
+  );
+}
 			  function recalculate() {
 				  let prices = "<?= $prices ?>";
 				  let calculation = "";
 				  let total = 0;
+				  window.seatCount = 0;
 				  try {
 				  if (prices) {
 					  let psplit = prices.split(/\s+/);
@@ -380,6 +634,7 @@ function formHeaderStyles($id, $state, $prices, $name)
 						  let fieldPrice = +(psplit?.[i+1]);
 						  if (isNaN(fieldPrice)) fieldPrice = 0;
 						  let fieldValue = Number(jQuery('#'+fieldName).prop('value')); // not attr()!
+						  window.seatCount += fieldValue;
 						  let fieldGross = fieldValue * fieldPrice;
 						  if (fieldValue < 0 || fieldValue > 10 || fieldPrice < 0 || fieldPrice > 100) {
 							  throw ("some mistake in the calculation");
@@ -395,6 +650,7 @@ function formHeaderStyles($id, $state, $prices, $name)
 				}  catch (e) {calculation = e;}
 				jQuery("#calculation").attr("value",calculation);
 				jQuery("#totalPrice").attr("value",total.toFixed(2));
+				  reveal();
 			  }
 			  function makeChanges() {
 			  	jQuery('.moylgrove-form input:not(.calculated)').attr('readonly', false);
@@ -434,6 +690,8 @@ function formHeaderStyles($id, $state, $prices, $name)
 			  	jQuery('.moylgrove-form input').attr('readonly', true);
 			  	jQuery('.moylgrove-form').addClass("readonly");
 			  	jQuery('.wppaypal_checkout_custom_input').attr("value", '<?= $id ?>');
+			    setMenu();
+				  reveal();
 			  });
 		  </script>
 		  
@@ -442,12 +700,17 @@ function formHeaderStyles($id, $state, $prices, $name)
 			window.id = "<?= $id ?>";
 			document.cookie= "id=<?= $id ?>; Max-Age=6000000"; // <3 months
 		</script>
-		<?php } else { ?>
+		<?php 
+	} else { ?>
 		<script>
 			jQuery(() =>{
 				let amountField = jQuery('.wppaypal_checkout_amount_input');
 				let buttons = amountField.parent();
 				buttons.hide();
+				
+				setMenu();
+				window.seatCount = 0;
+				reveal();
 			});
 		</script>
 		  <?php }

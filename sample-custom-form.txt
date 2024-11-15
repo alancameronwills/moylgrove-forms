@@ -1,0 +1,92 @@
+[moylgrove-form prices="adults 15 kids 10"]
+<h2>{state}Book your seats||You've booked your seats||You've cancelled your booking||Pay for your seats{/state}</h2>
+<div class="row moylgrove-paypal" style="display:none">
+	<div class="moylgrove-amount-due">
+		<div style="font-size:min(3vw,18pt)">Please pay</div>
+			£ {amountDue}
+		</div>
+		{paypal}
+	</div>
+  <div class="row"><div>Number of seats (including you):</div>
+ 	<div><label>Adults {adults n 0 10}</label></div><div>
+		<label>Under-13s {kids n 0 10 ?}</label>
+  </div>
+</div>
+
+{menu}
+  ["", "", "<h3>Main Course choices</h3>"],
+  ["main", "turkey", "<b>Turkey, stuffing &amp; cranberry sausage</b> from Dewi James, with veg, onion gravy", "!"],
+  ["main", "veggie","<b>Vegetarian/Vegan</b> festive Quorn sausage, veg, onion gravy"],
+  ["", "", "<h3>Dessert choices</h3>"],
+  ["sweet", "crumble", "Spiced apple crumble (GF)"],
+  ["sweet", "brownie", "Chocolate brownie"],
+  ["sweet", "almond", "Almond slice"],
+  ["", "", "<h4>with</h4>"],
+  ["cream", "cream", "Cream"],
+  ["cream", "icecream", "Ice cream"],
+  ["", "", "<h3>Diet &amp; allergies</h3>"],
+  ["", "gf", "Gluten free"],
+  ["", "vegan", "Vegan"],
+  ["", "", "Anything else:{diet ?}"]
+{/menu}
+
+
+ 	<div class="row">
+    <div>Your name:</div><div>
+	 	  <label>first<br>{first}
+		  </label><label>last<br>{last}</label>
+    </div>
+  </div>
+ 	<div class="row">
+    <div>Address:</div><div>
+	 	  <label>house<br>{address}
+		  </label><label>post code<br>{postcode text 10}
+		  </label>
+    </div>
+  </div>
+ 	<div class="row">
+    <div>Contact:</div><div>
+	 	  <label>phone<br>{phone text 14 0 ?}
+		  </label><label>email<br>{email t 25}
+		  </label></div>
+	</div>
+	<div class="row">
+    <div>Price<a href="./?counters=1">:</a></div><div>
+	 	  <label>amount:<br>£{totalPrice calc 6}
+		  </label><label>paid:<br>£{paid calc 6}
+		  </label>
+    </div>
+  </div>
+  {paid gt totalPrice}We owe you some money - we'll refund it in due course{/gt}
+
+======
+ 	 
+	 Dear {first} {last},
+ 	 {state} Seats || Thank you for booking seats || You've cancelled your booking || Awaiting payment for seats booked {/state}
+	 	at Moylgrove Old School Hall for "{title}" on Friday 13 December at 19:00.
+ 	 
+ 	 You've booked seats for {adults} adults and {kids} under-13s.
+         {diet}
+
+{totalPrice gt 0}We'll have your name on a list when you come to the event. You can bring a copy of this just in case.{/gt}
+
+    Ticket price: £{totalPrice}
+    You've paid:  £{paid}
+	{paid gt totalPrice}We owe you some money. We will refund it soon.{/gt}
+
+Your menu choices are:
+{menuSummary}
+ 	  
+ 	 We've got your address as: {address} {postcode}
+ 	 If we need to contact you in a hurry, we'll use: {phone}
+
+ 	 If you need to adjust your booking, click here: 
+         {url}
+
+ 	 If you have any queries, please phone 0797 473 9216
+ 	 Thanks
+ 	 Cymdeithas Trewyddel
+ 	 {home}
+[/moylgrove-form]
+
+[moylgrove-forms-table sum="adults kids"  public="diet"]
