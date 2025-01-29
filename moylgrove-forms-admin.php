@@ -12,18 +12,29 @@ function moylgrove_forms_admin_page(){
 <p>Easiest way is to use a Standard form; or for finer control, create a Custom form.</p>
 <h2>Standard Form</h2>
 <p>In the text of the event page, include a shortcode like this:</p>
-<blockquote><code>[moylgrove-standard-form date='Tuesday 15 February 2022 at 7:30p.m.' prices='adults 10 kids 3.50']</code></blockquote>
+<blockquote><code>[moylgrove-standard-form date='Tuesday 15 February 2022 at 7:30p.m.' note='Veggie or GF?'
+	               prices='adults 10 kids 3.50' max=60 full='Sorry! Sold out']</code></blockquote>
 <p>This will show a booking form that will book seats and take money online.</p>
 <p>Take care not to omit the quotation marks and the spaces, and the brackets at beginning and end.</p>
 <p>The date of the event is used as a reminder in the acknowledgement email. You can write anything in there, like:
 </p>
 <blockquote><code>date='15:00 Tue Feb 15 at the beach - bring wellies!'</code></blockquote>
+<p>To include a general text field where users can provide options or notes, add <code>note</code>:</p>
+<blockquote><code>note='Dietary requirements:'</code></blockquote>
+<h3>Limiting sales</h3>
+<p>Set <code>full='Sold out'</code> or whatever message you want to show when you're full. </p>
+<p>Set <code>max=60</code> or however many seats you want to sell. (You must set <code>full</code> for this to work.) </p>
+<p>Bookings are allowed until the max is exceeded. So if the last party to book has several people, you might end up with a few more than you expected. There's a limit of 10 people per booking, but this isn't currently reduced as we approach the max for the event.</p>
+
 <h3>Prices</h3>
 <p>If you don't want to take money in advance, but just reserve seats, omit <code>prices</code>.</p>
 <br/>If kids are free, write <code>kids 0</code>.</p>
 <p>If you want to charge a fixed price in advance for meals, include the price of a meal:</p>
 <blockquote><code>prices='adults 8.50 kids 0 meals 5'</code></blockquote>
 <p>(Adults, kids, and meals are the specific price options available in the Standard form.)</p>
+
+<h3>Getting a count of bookings</h3>
+In the standard form, just after the section label "Price", the colon has a link. Click this to see an anonymized count of all the bookings that have been made.
 <h3>Managing the bookings</h3>
 <p>Login to WordPress and open the event's page (the published page - don't edit it). 
 	The list of bookings appears underneath the booking form.</p>
@@ -37,6 +48,7 @@ function moylgrove_forms_admin_page(){
 <p>Edit the shortcode to include the <code>full</code> parameter:</p>
 <blockquote><code>[moylgrove-standard-form full='Sold out - sorry!' date='Tuesday 15 February 2022 at 7:30p.m.' prices='adults 10 kids 3.50']</code></blockquote>
 <p>This will disallow new bookings, while allowing existing customers to review their existing booking.</p>
+<p>(To do this automatically, you can set the full message and set max=60 or however many you want to sell.)</p>
 
 <h3>Refunds</h3>
 <p>If, after they have paid for some tickets, a customer changes the booking to reduce the number of seats they want, then we'll owe them a refund. 
@@ -47,29 +59,46 @@ function moylgrove_forms_admin_page(){
 <h2>Custom form</h2>
 <p>Instead of the Standard form, you can set your own layout and fields. Create a <b>Custom booking form</b> 
 and underneath that a <b>Custom bookings table</b>.</p>
+
 <h3><i>Custom booking form</i></h3>
+<p>Note that <b>the max parameter only works</b> if you include a Custom bookings table in your form. 
+	If you don't include a bookings table (though why wouldn't you?) you'd need to omit the max and full parameters,
+	then edit the page to include the full parameter when you want bookings to stop.</p>
 <p>Example:</p>
 <pre>
-[moylgrove-form prices="adults 9.50 kids 0"]
+[moylgrove-form prices="adults 15 kids 8" max=60 full="Sorry! Sold out"]
 	&lt;style>
-	   ... CSS for your form ...
+	     /* ... CSS for your form ... */
+	   		.moylgrove-paypal {
+			background-color: dodgerblue !important;
+    		justify-content: space-around !important;
+    		align-items: center;
+			text-align: center;
+    		font-weight: bold;
+    		font-size: min(10vw,72pt);
+    		color: white;
+		}
+		.moylgrove-paypal-buttons {
+			/*width:min(300px,30vw);*/
+		}
+		.moylgrove-paypal-buttons>div>div {
+			display:flex;
+		    align-items: center;
+			margin-top:2vw;
+		}
 	&lt;/style>
-         &lt;h2>{state}Book your ticket||You've booked your ticket||You've cancelled your ticket||Pay for your ticket{/state}&lt;/h2>
-	 &lt;div class="row">&lt;div class='moylgrove-paypal'><span>Please pay £ <span class="amount_due"></span></span>{paypal}&lt;/div>	 
+         &lt;h2>{state}Book your seats||You've booked your seats||You've cancelled your booking||Pay for your seats{/state}&lt;/h2>
+	&lt;div class="row moylgrove-paypal" style="display:none">
+		&lt;div class="moylgrove-amount-due">
+			&lt;div style="font-size:min(3vw,18pt)">Please pay&lt;/div>
+			£ {amountDue}
+		&lt;/div>
+		{paypal}
+	&lt;/div>
  	 &lt;div class="row">&lt;div>Number of seats (including you):&lt;/div>
 	 	&lt;div>&lt;label>Adults {adults n 0 10}&lt;/label>&lt;/div>&lt;div>
-			&lt;label>Kids {kids n 0 10 ?}&lt;/label>&lt;/div>&lt;/div>
-	{menu}
-	["", "", 2, "&lt;h3>Main Course choices&lt;/h3>"],
-  	["main","turkey",3,"&lt;b>Turkey&lt;/b> and stuffing"],
-	["main","veggie",4,"&lt;b>Vegetarian&lt;/b> cardboard sausage"],
-  	["main","vegan",5,"&lt;b>Vegan&lt;/b> Quorn sausage",],
-  	["", "", 6, "&lt;h3>Dessert choices&lt;/h3>"],
-	["sweet", "crumble", 7, "Spiced apple crumble"],
-	["sweet", "brownie", 8, "Chocolate brownie"],
-  	["","",13, "&lt;h3>Dietary requirements&lt;/h3>"],
-  	["", "gf", 14, "Gluten free"]
-	{/menu}
+			&lt;label>Under-12s {kids n 0 10 ?}&lt;/label>&lt;/div>&lt;/div>
+         &lt;div class="row">&lt;div>&lt;label>Dietary requirements&lt;/label>&lt;/div>&lt;div>{diet t 30 ?}&lt;/div>&lt;/div>
  	 &lt;div class="row">&lt;div>Your name:&lt;/div>&lt;div>
 	 	&lt;label>first&lt;br>{first}
 		&lt;/label>&lt;label>last&lt;br>{last}&lt;/label>&lt;/div>&lt;/div>
@@ -79,7 +108,7 @@ and underneath that a <b>Custom bookings table</b>.</p>
  	 &lt;div class="row">&lt;div>Contact:&lt;/div>&lt;div>
 	 	&lt;label>phone&lt;br>{phone text 14 0 ?}&lt;/label>
 		&lt;label>email&lt;br>{email t 35}&lt;/label>&lt;/div>&lt;/div>
-	 &lt;div class="row">&lt;div>Price:&lt;/div>&lt;div>
+	 &lt;div class="row">&lt;div>Price&lt;a href="./?counters=1">:&lt;/a>&lt;/div>&lt;div>
 	 	&lt;label>amount&lt;br>£{totalPrice calc 6}&lt;/label>
 		&lt;label>paid&lt;br>£{paid calc 6}&lt;/label>&lt;/div>&lt;/div>
      {paid gt totalPrice}We owe you some money - we'll refund it in due course{/gt}	
@@ -87,21 +116,29 @@ and underneath that a <b>Custom bookings table</b>.</p>
 	 ======
  	 
 	 Dear {first} {last},
- 	 {state} - || Thank you for booking || You've cancelled your || - {/state}
-	 	seats at Moylgrove Old School Hall for "{title}" on Tuesday 18 January 2022   at 19:30.
+ 	 {state} Seats || Thank you for booking seats || You've cancelled your booking || Awaiting payment for seats booked {/state}
+	 	at Moylgrove Old School Hall for "{title}" on Friday 13 December  at 19:00.
  	 
- 	 You've booked seats for {adults} adults and {kids} under-16s. You're having {meals} meals.
-	 The ticket price is £{totalPrice} - thanks for your payment of £ {paid}.
+ 	 You've booked seats for {adults} adults and {kids} under-12s.
+         {diet}
+
+{totalPrice gt 0}We'll have your name on a list when you come to the event. You can bring a copy of this just in case.{/gt}
+
+    Ticket price: £{totalPrice}
+    You've paid:  £{paid}
+	{paid gt totalPrice}We owe you some money. We will refund it soon.{/gt}
 
  	  
  	 We've got your address as: {address} {postcode}
  	 If we need to contact you in a hurry, we'll use: {phone}
  	 If you need to adjust your booking, find it here: {url}
- 	 If you have any queries, please phone 01239 881752
+ 	 If you have any queries, please phone 0797 473 9216
  	 Thanks
  	 Cymdeithas Trewyddel
  	 {home}
 [/moylgrove-form]
+
+[moylgrove-forms-table sum="adults kids"  public="diet"]
 </pre>
 <p>You write the HTML of your form within the shortcode body. Remember the closing tag.</p>
 <p>There are two parts, separated by <code>====</code>. The first part is the HTML of the form; the second is the email template.</p>
@@ -144,22 +181,12 @@ and underneath that a <b>Custom bookings table</b>.</p>
 		and changed the number of seats.)</dd>
 	<dt><code>{calculation c 30}</code></dt>
 	<dd>Shows how the totalPrice was worked out.</dd>
-	<dt><code>{menu}...{/menu}</code>
-	<dd>Presents the user with menu choices. There can be multiple choices, 
-		e.g. Main course, Dessert. Each choice may each have several options.
-		There's a separate column of choices for each seat booked.<br/>
-		Form of each line - note the comma at the end:<br/>
-	<code>["Radio_button_group","item_id","Name of menu item"],</code><br/>
-	E.g. <code>["dessert","crumble","Apple crumble"],</code><br/>
-	Missing group name is a checkbox: <code>["", "gf", "Gluten free"],</code><br/>
-	Missing item_id is a section head or separator: <code>["", "", "&lt;h3>Dessert choices&lt;/h3>"],</code>
-	</dd>
 </dl>
 <h4>Payment area</h4>
 <dl>
 	<dt><code>{paypal}</code></dt>
 	<dd>Code for the PayPal buttons will be inserted here. The amount to be taken will be set to <code>totalPrice - paid</code>.</dd>
-	<dt><code>&lt;span class="amount_due"&gt;&lt;/span&gt;</code></dt>
+	<dt><code>&lt;span class="moylgrove-amount-due"&gt;&lt;/span&gt;</code></dt>
 	<dd>The amount to be taken will be inserted here.</dd>
 	<dt><code>&lt;div class='moylgrove-paypal'&gt; ... &lt;/div&gt;</code></dt>
 	<dd>Any element with this class will be hidden except when payment is invited</dd>
@@ -177,18 +204,17 @@ and underneath that a <b>Custom bookings table</b>.</p>
 </ul>
 
 <h3><i>Custom bookings table</i></h3>
-<p>To display the bookings table (only to logged-in users), use a shortcode like this:</p>
+<p>To display the bookings table, use a shortcode like this:</p>
 <pre>
-	[moylgrove-forms-table style=html sum="adults kids"]
+	[moylgrove-forms style=html sum="adults kids" public="diet"]
 </pre>
+<p>The table is not shown to normal users that are not logged in. To see the table, users must log in to WordPress, even if they only have reader permissions.</p>
+<p>An anonymized version of the table can be seen by other users by appending "?counters=1" to the URL of the bookings page. This includes only the columns that show the numbers of seats booked.</p>
 <p>Parameters:</p>
 <ul>
 	<li><code>style</code> = <code>html</code> or <code>csv</code>. Default html.</li>
 	<li><code>sum</code> = list of numeric fields to be summed in the displayed table. Default 'adults kids'.</li>
-</ul>
-<p>The shortcode will display the full table only to users who are logged in to WP.</p>
-<p>It will display a summary of the <code>sum</code> columns to anyone if the page URL ends <code>?counters=1</code>.</p>
-
+	<li><code>public</code> = Even users that are not logged in will see these fields by appending ?counters=1 to the URL.</li>
 <?php
 }
 ?>

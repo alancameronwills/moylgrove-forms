@@ -10,9 +10,10 @@ function moylgrove_print_form(
   $id, // ID of this booking - null if fresh
   $seats = "adults kids", // numeric fields to be counted
   $submit = "Book and pay", // label of submit button if used
-  $full = '', // If set, prevents further bookings
+  $full = '', // If set, prevents further bookings after $max
   $prices = '', // If set, requires payment before booking is completed
-  $state // seatsBooked, paid, price, bookingMode, fields
+  $state, // seatsBooked, paid, price, bookingMode, fields
+  $max = 0 // Ignore $full until count of bookings is > $max
 ) {
   $done_submit = false;
   $fields = $state['fields'];

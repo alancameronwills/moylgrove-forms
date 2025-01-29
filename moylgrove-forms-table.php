@@ -18,10 +18,7 @@ function moylgrove_forms_table_shortcode($attributes = [], $content = null)
   // So we only allow logged-in users to see it.
   // Non-logged in users can see the counts of seats by appending "?counters=1" to the page URL
   $fullTable = is_user_logged_in();
-  if (!$fullTable && !isset($_GET['counters'])) {
-    return;
-  }
-
+  $showTable = $fullTable || isset($_GET['counters']);
 
   // normalize attribute keys, lowercase:
   $attributes = array_change_key_case((array) $attributes, CASE_LOWER);
@@ -37,7 +34,7 @@ function moylgrove_forms_table_shortcode($attributes = [], $content = null)
       $attributes
     )
   );
-  $sum .= " paid"; // also count up the fixed-name PayPal payments
+  //$sum .= " paid"; // also count up the fixed-name PayPal payments
 
   global $wpdb;
   $table_name = $wpdb->prefix . 'moylgrove_forms';
@@ -70,7 +67,7 @@ function moylgrove_forms_table_shortcode($attributes = [], $content = null)
       $item['timestamp'] = $row->time;
       foreach (array_keys($item) as $k) {
         // Logged in user can see everything; others only see summed columns
-        if ($fullTable || strpos(" $sum ", " $k ") !== false || strpos(" $public ", " $k ") !== false ) {
+        if ($fullTable || strpos(" $public ", " $k ") !== false ) {
 			if (strpos($k, "#")>1) {
 				// exclude detail menu items
 			} else {
@@ -113,7 +110,7 @@ function moylgrove_forms_table_shortcode($attributes = [], $content = null)
           $cells[] = $cell;
         }
       }
-      if ($rowsum == 0) {
+      if ($rowsum == 0 && $fullTable) {
         $cells[] = "<a href='./?delete=$rowid'><span style='color:red;font-weight:700;'>X</span></a>";
       }
       echo $pp[0] . implode($pp[1], $cells) . $pp[2];
@@ -124,12 +121,16 @@ function moylgrove_forms_table_shortcode($attributes = [], $content = null)
     foreach ($heads as $head) {
       $v = $sums[$head] ?? "";
       $cells[] = ($v != 0 ? $v : "");
-      //$total += intval($v);
+		if (strpos(" $sum ", " $head ") !== false) {
+      		$total += intval($v);
+		}
     }
     echo $pp[0] . implode($pp[1], $cells) . $pp[2];
     echo $html ? "</table>" : "</pre>";
     if ($total > 0) {
-      echo "<p>Total $total</p>";
+      	echo "<p>Total $total</p>";
+		add_option("seatCount_" . $name);
+		update_option("seatCount_" . $name, $total);
     }
   }
   echo "<button style='color:black;border-radius:10px;padding:0 10px;'><a href='/wp-content/plugins/moylgrove-forms/csv.php?event=$name'>CSV</a></button>";
@@ -139,7 +140,12 @@ function moylgrove_forms_table_shortcode($attributes = [], $content = null)
 		jQuery(".moylgrove-form").css("max-width", "var(--responsive--alignwide-width)");
 		jQuery(".bookings-table").css("font-size", "small");
 	});</script>
-<?php return ob_get_clean();
+<?php
+	if ($showTable) return ob_get_clean();
+	else {
+		ob_clean();
+		return "";
+	}
 }
 add_shortcode("moylgrove-forms-table", "moylgrove_forms_table_shortcode");
 ?>

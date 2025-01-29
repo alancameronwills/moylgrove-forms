@@ -7,7 +7,8 @@
 /// See the description on the admin page
 ///
 /// Shortcode attributes:
-///   full - Set this only when you're sold out. A message such as "Sorry, we're sold out!"
+///   full - Set this to show when you're sold out. A message such as "Sorry, we're sold out!"
+/// - max - Number of seats to be booked before the full message shows. If not set, full shows immediately.
 /// - prices - Required if you want to charge via PayPal or card as part of the booking process
 ///			List of pairs of <field-name price> all space-separated.
 ///			Field-name is a numeric field used in your form. Prices in £, e.g. 10 or 5.67
@@ -65,7 +66,8 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
         'seats' => "adults kids", // numeric columns - both zero implies cancellation
         'prices' => "", // e.g. "adults 10 kids 0"
         'submit' => "Book and pay", // button label
-        'full' => '', // e.g. "Fully booked" - show instead of content unless already booked
+        'full' => '', // e.g. "Fully booked" - show instead of content unless this booking already exists, or total booked < max
+		'max' => 0, // Number of seats to book before showing the full message 
         'bcc' => '', // in addition to info@moylgrove.wales
         'debug' => '',
       ],
@@ -124,6 +126,9 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
   //echo "==A==";
   //var_dump($rows);
   //echo "==" . count($rows) . "==";
+	
+  $countBooked = get_option("seatCount_" . $name) ?? 0;
+  if ($countBooked < $max) $full = '';
   
   if (count($rows) == 0) {
    	  // Show fresh booking form:
