@@ -66,7 +66,7 @@ and underneath that a <b>Custom bookings table</b>.</p>
 	then edit the page to include the full parameter when you want bookings to stop.</p>
 <p>Example:</p>
 <pre>
-[moylgrove-form prices="adults 15 kids 8" max=60 full="Sorry! Sold out"]
+[moylgrove-form prices="adults 15 kids 8" seats="adults kids" sum="adults kids" max=60 full="Sorry! Sold out"]
 	&lt;style>
 	     /* ... CSS for your form ... */
 	   		.moylgrove-paypal {
@@ -146,11 +146,13 @@ and underneath that a <b>Custom bookings table</b>.</p>
 <h4>Shortcode attributes</h4>
 <p>Example:</p>
 <pre>
-	[moylgrove-form submit='Book your place' seats='adults kids' bcc='me@x.com' prices='adults 5 kids 0'] ... [/moylgrove-form]
+	[moylgrove-form submit='Book your place' seats='adults kids' sum='adults kids' bcc='me@x.com' prices='adults 5 kids 0'] ... [/moylgrove-form]
 </pre>
 <dl>
 	<dt><code>seats</code></dt>
 	<dd>Numeric fields in your template that represent seats or items purchased such as meals or tshirts. If the user sets all these fields to 0, the <code>{state}</code> field will show the cancellation text. Default 'adults kids'</dd>
+	<dt><code>sum</code></dt>
+	<dd>Should currently be set same as 'seats'. Default 'adults kids'</dd>
 	<dt><code>prices='adults 10.00 kids 5.00 meals 3.50'</code></dt>
 	<dd>If this is set, payment will be part of the booking process. List of pairs of 'field price'. A subset of the numeric fields in your template that will be used to compute the price. Usually a subset of seats. Put a space between each item and price.</dd>
 	<dt><code>full='Sorry - sold out!'</code></dt>
