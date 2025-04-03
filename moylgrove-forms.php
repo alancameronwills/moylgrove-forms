@@ -6,7 +6,7 @@
  * Version: 1.0.1
  * Author: Alan Cameron Wills
  * Licence: GPLv2
- * 
+ * Requires Plugins: wp-paypal
  */
 
 
@@ -85,14 +85,20 @@ function moylgrove_forms_checkout_processed($payment_data, $details) {
 	$table_name = $wpdb->prefix . 'moylgrove_forms';
 	
 	$id = $payment_data['custom'];
+	
+	// error_log("moylgrove_forms_checkout_processed id=" . print_r($id));
 
 	$rows = isset($id) ? $wpdb->get_results($wpdb->prepare(
 		"SELECT * FROM $table_name WHERE id = %s", $id) )
 		: [];
 
-    $data = json_decode($rows[0]->text, true);
+    $data = isset($rows[0]) ? json_decode($rows[0]->text, true) : [];
 
 	$previous= isset($data['paid']) ? (float)$data['paid'] : 0;
+	
+	$name = isset($rows[0]) ?  $rows[0]->name : "";
+	
+	// error_log("moylgrove_forms_checkout_processed name=" . $name);
 
 	$data['paid'] = number_format(round((float)$payment_data['mc_gross'] + $previous,2),2);
                   
@@ -101,7 +107,7 @@ function moylgrove_forms_checkout_processed($payment_data, $details) {
 	$wpdb->replace($table_name, [
 		'id'=>$id,
 		'time' => current_time( 'mysql' ), 
-		'name' => $rows[0]->name, 
+		'name' => $name, 
 		'text' => $text
 	]);
 	
@@ -110,7 +116,7 @@ function moylgrove_forms_checkout_processed($payment_data, $details) {
 
 function moylgrove_forms_getOrderIdInBuyButton($custom_input_code, $button_code, $atts){
 	$customValue = isset($atts['custom']) ? esc_attr($atts['custom']) : "0";
-	return '<input class="wppaypal_checkout_custom_input" type="hidden" name="amount" value="'.$customValue.'" required>';
+	return '<input class="wppaypal_checkout_custom_input" type="hidden" name="custom" value="'.$customValue.'" required>';
 }
 
 /********************************************/

@@ -34,13 +34,13 @@ formHeaderStyles($id, $state, $prices, $name);
 
 
 $template2 = rewrite_longs($template, $state, $fields);
-
+$urlForReturn = get_permalink( get_the_ID() );
 $timestamp = time();
 $fields['paypal'] = "
 		<div class='moylgrove-paypal-buttons'>
 			[wp_paypal_checkout 
 				description='Tickets for event at Moylgrove Old School Hall' 
-				amount='0' no_shipping='1' custom='444' return_url='./?paid=$timestamp#form']
+				amount='0' no_shipping='1' custom='444' return_url='$urlForReturn?paid=$timestamp#form']
 		</div>";
 $fields['amountDue'] = "<span class='amount_due'></span>";
 
