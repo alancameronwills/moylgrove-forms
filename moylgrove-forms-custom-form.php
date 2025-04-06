@@ -143,7 +143,7 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
       moylgrove_print_form($template, $state, $name, $id, $seats, $submit, $full, $prices);
       if (
         (!empty($_POST) &&
-          ($status == MG_BOOKED_STATUS || $status == MG_CANCELLED_STATUS)) ||
+          ($state == MG_BOOKED_STATUS || $state == MG_CANCELLED_STATUS)) ||
         isset($_GET['paid'])
       ) {
 		// Just completed a booking or cancelled one.
