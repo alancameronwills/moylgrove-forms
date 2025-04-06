@@ -135,12 +135,12 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
       if (!empty($full)) {
         ?><h2 style='background-color:orange'><?= $full ?></h2><?php
       } else {
-        moylgrove_print_form($template, $name, null, $seats, $submit, $full, $prices, $state);
+        moylgrove_print_form($template, $state, $name, null, $seats, $submit, $full, $prices);
       }
   } else {
     foreach ($rows as $row) {
 
-      moylgrove_print_form($template, $name, $id, $seats, $submit, $full, $prices, $state);
+      moylgrove_print_form($template, $state, $name, $id, $seats, $submit, $full, $prices);
       if (
         (!empty($_POST) &&
           ($status == MG_BOOKED_STATUS || $status == MG_CANCELLED_STATUS)) ||
@@ -149,11 +149,11 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
 		// Just completed a booking or cancelled one.
         moylgrove_send_email(
           $email_template,
+		  $state,
           get_the_title($current_post),
           get_permalink($current_post) . "?id=$id",
           "Moylgrove Old School Hall",
-          $bcc,
-		  $state
+          $bcc
         );
         //print_r($fields);
       }
