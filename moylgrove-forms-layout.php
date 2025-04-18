@@ -256,7 +256,7 @@ function rewrite_longs($template, $state, $fields)
     function ($matches)use($fields) {
       $term = function ($i) use ($matches, $fields) {
         return is_numeric($matches[$i]) ? $matches[$i] 
-            : ($fields != null ? $fields[$matches[$i]] :  0);
+            : ($fields != null ? (isset($fields[$matches[$i]]) ? $fields[$matches[$i]] : 0) :  0);
       };
       if (count($matches) == 4) {
         $a = $term(1);
