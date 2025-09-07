@@ -95,7 +95,7 @@ function moylgrove_standard_form($attributes = [])
 ======
 Dear {first} {last},
 
-{state}Seats||Thank you for booking seats||You've cancelled your booking||Awaiting payment for seats booked{/state} at Moylgrove Old School Hall for "{title}" on <?=$date?>.
+{state}Seats||Thank you for paying for seats||You've cancelled your booking||Seats booked (not paid yet){/state} at Moylgrove Old School Hall for "{title}" on <?=$date?>.
 
 You've booked: 
      Adults:   {adults}         Under-16s: {kids}
@@ -114,6 +114,8 @@ You've booked:
 	}
 	?>
 	
+{1 gt paid}You can pay online or at the door{/gt}
+	
 {totalPrice gt 0}We'll have your name on a list when you come to the event. You can bring a copy of this just in case.{/gt}
 
 <?php 
@@ -131,7 +133,7 @@ We've got your address as: {address} {postcode}
 
 If we need to contact you in a hurry, we'll use: {phone}
 
-If you need to adjust your booking, find it here: {url}
+If you need to adjust your booking, click this link: {url}
 
 
 Thanks

@@ -125,7 +125,7 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
 
   //echo "==A==";
   //var_dump($rows);
-  //echo "==" . count($rows) . "==";
+  //echo "==" . $state . " " . count($rows) . "==";
 	
   $countBooked = get_option("seatCount_" . $name) ?? 0;
   if ($countBooked < $max) $full = '';
@@ -141,9 +141,10 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
     foreach ($rows as $row) {
 
       moylgrove_print_form($template, $state, $name, $id, $seats, $submit, $full, $prices);
+	  $bookingMode = $state['bookingMode'];
       if (
         (!empty($_POST) &&
-          ($state == MG_BOOKED_STATUS || $state == MG_CANCELLED_STATUS)) ||
+          ($bookingMode == MG_PAY_STATUS || $bookingMode == MG_BOOKED_STATUS || $bookingMode == MG_CANCELLED_STATUS)) ||
         isset($_GET['paid'])
       ) {
 		// Just completed a booking or cancelled one.
