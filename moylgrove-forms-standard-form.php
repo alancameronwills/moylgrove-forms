@@ -53,7 +53,11 @@ function moylgrove_standard_form($attributes = [])
 			<div style="font-size:min(3vw,18pt)">Please pay</div>
 			£ {amountDue}
 		</div>
+		<div>
 		{paypal}
+			
+		<div style="font-size:12pt"><i>Or you can pay in person at the door</i></div>
+		</div>
 	</div>
 	<?php
 	}
