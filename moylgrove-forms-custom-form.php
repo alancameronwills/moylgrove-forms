@@ -142,21 +142,40 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
 
       moylgrove_print_form($template, $state, $name, $id, $seats, $submit, $full, $prices);
 	  $bookingMode = $state['bookingMode'];
-      if (
-        (!empty($_POST) &&
-          ($bookingMode == MG_PAY_STATUS || $bookingMode == MG_BOOKED_STATUS || $bookingMode == MG_CANCELLED_STATUS)) ||
-        isset($_GET['paid'])
-      ) {
-		// Just completed a booking or cancelled one.
+      if (!empty($_POST) && ($bookingMode == MG_BOOKED_STATUS || $bookingMode == MG_CANCELLED_STATUS)) {
+        // Free event (no payment needed) or cancellation: send immediately.
         moylgrove_send_email(
           $email_template,
-		  $state,
+          $state,
           get_the_title($current_post),
           get_permalink($current_post) . "?id=$id",
           "Moylgrove Old School Hall",
           $bcc
         );
-        //print_r($fields);
+      } elseif (!empty($_POST) && $bookingMode == MG_PAY_STATUS) {
+        // Booking made but payment not yet received: delay email by 10 minutes
+        // so we don't send a "please pay" email to someone who pays straight away.
+        moylgrove_schedule_pending_email(
+          $id,
+          $email_template,
+          $state,
+          get_the_title($current_post),
+          get_permalink($current_post) . "?id=$id",
+          "Moylgrove Old School Hall",
+          $bcc
+        );
+      } elseif (isset($_GET['paid'])) {
+        // Payment received: cancel the pending delayed email and send confirmation now.
+        wp_clear_scheduled_hook('moylgrove_delayed_email', [$id]);
+        delete_transient("moylgrove_pending_email_$id");
+        moylgrove_send_email(
+          $email_template,
+          $state,
+          get_the_title($current_post),
+          get_permalink($current_post) . "?id=$id",
+          "Moylgrove Old School Hall",
+          $bcc
+        );
       }
     }
   }
@@ -164,3 +183,23 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
   return do_shortcode(ob_get_clean());
 }
 add_shortcode("moylgrove-form", "moylgrove_form_shortcode");
+
+function moylgrove_schedule_pending_email($id, $email_template, $state, $post_title, $post_link, $place, $bcc) {
+  $fields = $state['fields'];
+  if (!isset($fields['email'])) return;
+
+  // Store all params needed to send the email later.
+  $pending = [
+    'email_template' => $email_template,
+    'state'          => $state,
+    'post_title'     => $post_title,
+    'post_link'      => $post_link,
+    'place'          => $place,
+    'bcc'            => $bcc,
+  ];
+  set_transient("moylgrove_pending_email_$id", $pending, 20 * MINUTE_IN_SECONDS);
+
+  // Cancel any previously scheduled event for this booking, then reschedule.
+  wp_clear_scheduled_hook('moylgrove_delayed_email', [$id]);
+  wp_schedule_single_event(time() + 5 * MINUTE_IN_SECONDS, 'moylgrove_delayed_email', [$id]);
+}

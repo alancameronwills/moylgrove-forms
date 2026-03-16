@@ -157,6 +157,8 @@ function moylgrove_send_email(
     }
     $message .= "\nClick to see or adjust your booking: $post_link\n";
   } else {
+    $fields['paid']       = number_format((float)($fields['paid']       ?? 0), 2);
+    $fields['totalPrice'] = number_format((float)($fields['totalPrice'] ?? 0), 2);
     $fields['title'] = preg_replace(
       "/&#.*?;/",
       " ",

@@ -119,6 +119,37 @@ function moylgrove_forms_getOrderIdInBuyButton($custom_input_code, $button_code,
 	return '<input class="wppaypal_checkout_custom_input" type="hidden" name="custom" value="'.$customValue.'" required>';
 }
 
+// Delayed email: fires 10 minutes after a booking when payment has not yet been received.
+add_action('moylgrove_delayed_email', 'moylgrove_send_delayed_email');
+
+function moylgrove_send_delayed_email($id) {
+	$pending = get_transient("moylgrove_pending_email_$id");
+	if (!$pending) return; // Transient already deleted — payment was received in time.
+
+	delete_transient("moylgrove_pending_email_$id");
+
+	// Double-check the DB in case payment arrived but the ?paid redirect didn't run
+	// (e.g. user closed the browser after PayPal).
+	global $wpdb;
+	$table_name = $wpdb->prefix . 'moylgrove_forms';
+	$row = $wpdb->get_row($wpdb->prepare("SELECT text FROM $table_name WHERE id = %s", $id));
+	if ($row) {
+		$data  = json_decode($row->text, true);
+		$paid  = isset($data['paid'])       ? (float)$data['paid']       : 0;
+		$price = isset($data['totalPrice']) ? (float)$data['totalPrice'] : 0;
+		if ($price > 0 && $paid >= $price) return; // Already paid — skip.
+	}
+
+	moylgrove_send_email(
+		$pending['email_template'],
+		$pending['state'],
+		$pending['post_title'],
+		$pending['post_link'],
+		$pending['place'],
+		$pending['bcc']
+	);
+}
+
 /********************************************/
 $mgfdir = plugin_dir_path( __FILE__ );
 include_once($mgfdir . 'moylgrove-forms-dump.php');
