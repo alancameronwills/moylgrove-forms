@@ -118,7 +118,7 @@ You've booked:
 	}
 	?>
 	
-{1 gt paid}You can pay online or at the door{/gt}
+{1 gt paid}You can pay at the door or online: {url}{/gt}
 	
 {totalPrice gt 0}We'll have your name on a list when you come to the event. You can bring a copy of this just in case.{/gt}
 
