@@ -3,7 +3,7 @@
 /**
  * Plugin Name: Moylgrove Forms
  * Description: Take details of event bookings
- * Version: 1.0.1
+ * Version: 1.1.1
  * Author: Alan Cameron Wills
  * Licence: GPLv2
  */

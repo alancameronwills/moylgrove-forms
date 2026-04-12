@@ -38,9 +38,6 @@ function moylgrove_standard_form($attributes = [])
     		font-size: min(10vw,72pt);
     		color: white;
 		}
-		.moylgrove-paypal-buttons {
-			/*width:min(300px,30vw);*/
-		}
 		.moylgrove-paypal-buttons>div>div {
 			display:flex;
 		    align-items: center;
@@ -55,8 +52,6 @@ function moylgrove_standard_form($attributes = [])
 		</div>
 		<div>
 		{paypal}
-			
-		<div style="font-size:12pt"><i>Or you can pay in person at the door</i></div>
 		</div>
 	</div>
 	<?php
