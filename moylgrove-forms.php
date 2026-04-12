@@ -6,7 +6,6 @@
  * Version: 1.0.1
  * Author: Alan Cameron Wills
  * Licence: GPLv2
- * Requires Plugins: wp-paypal
  */
 
 
@@ -42,11 +41,6 @@ function moylgrove_forms_install() {
 	dbDelta( $sql ); // preserve if already exists
 
 	add_option( 'moylgrove_forms_version', $moylgrove_forms_version );
-	
-	// Hook to purchase button, which should be a wp_paypal_checkout
-	add_action('wp_paypal_checkout_order_processed', 'moylgrove_forms_checkout_processed', 10, 2);
-	add_filter('wppaypal_checkout_custom_input', 'moylgrove_forms_getOrderIdInBuyButton', 10, 3 );
-	add_action('wp_paypal_checkout_process_order', 'moylgrove_forms_checkout_process' , 10, 1);
 }
 register_activation_hook( __FILE__, 'moylgrove_forms_install' );
 
@@ -59,13 +53,7 @@ function myplugin_update_db_check() {
 }
 add_action( 'plugins_loaded', 'myplugin_update_db_check' );
 
-// Deactivation hook
-function moylgrove_forms_deactivate() {
-	remove_action('wp_paypal_checkout_order_processed', 'moylgrove_forms_checkout_processed');
-	remove_filter('wppaypal_checkout_custom_input', 'moylgrove_forms_getOrderIdInBuyButton');
-	remove_action('wp_paypal_checkout_process_order', 'moylgrove_forms_checkout_process');
-}
-register_deactivation_hook( __FILE__, 'moylgrove_forms_deactivate' );
+register_deactivation_hook( __FILE__, '__return_false' );
 
 function moylgrove_forms_uninstall() {
 	delete_option('moylgrove_forms_version');
@@ -76,50 +64,179 @@ function moylgrove_forms_uninstall() {
 }
 register_uninstall_hook(__FILE__, 'moylgrove_forms_uninstall');
 
-function moylgrove_forms_checkout_process($post_data) {
-	// error_log("PayPal response \n" . print_r($post_data, true), 1, "alan@cameronwills.org");
-}
+// ---- PayPal REST API endpoints ----
+add_action('rest_api_init', 'moylgrove_register_rest_routes');
 
-function moylgrove_forms_checkout_processed($payment_data, $details) {
-	global $wpdb;
-	$table_name = $wpdb->prefix . 'moylgrove_forms';
-	
-	$id = $payment_data['custom'];
-	
-	// error_log("moylgrove_forms_checkout_processed id=" . print_r($id));
-
-	$rows = isset($id) ? $wpdb->get_results($wpdb->prepare(
-		"SELECT * FROM $table_name WHERE id = %s", $id) )
-		: [];
-
-    $data = isset($rows[0]) ? json_decode($rows[0]->text, true) : [];
-
-	$previous= isset($data['paid']) ? (float)$data['paid'] : 0;
-	
-	$name = isset($rows[0]) ?  $rows[0]->name : "";
-	
-	// error_log("moylgrove_forms_checkout_processed name=" . $name);
-
-	$data['paid'] = number_format(round((float)$payment_data['mc_gross'] + $previous,2),2);
-                  
-	$text = json_encode($data);	
-
-	$wpdb->replace($table_name, [
-		'id'=>$id,
-		'time' => current_time( 'mysql' ), 
-		'name' => $name, 
-		'text' => $text
+function moylgrove_register_rest_routes() {
+	register_rest_route('moylgrove/v1', '/create-order', [
+		'methods'             => 'POST',
+		'callback'            => 'moylgrove_create_paypal_order',
+		'permission_callback' => '__return_true',
 	]);
-	
-	// error_log("Moylgrove checkout_processed " . print_r($payment_data, true));
+	register_rest_route('moylgrove/v1', '/capture-order', [
+		'methods'             => 'POST',
+		'callback'            => 'moylgrove_capture_paypal_order',
+		'permission_callback' => '__return_true',
+	]);
 }
 
-function moylgrove_forms_getOrderIdInBuyButton($custom_input_code, $button_code, $atts){
-	$customValue = isset($atts['custom']) ? esc_attr($atts['custom']) : "0";
-	return '<input class="wppaypal_checkout_custom_input" type="hidden" name="custom" value="'.$customValue.'" required>';
+function moylgrove_paypal_base_url() {
+	$mode = get_option('moylgrove_paypal_mode', 'sandbox');
+	return $mode === 'live'
+		? 'https://api-m.paypal.com'
+		: 'https://api-m.sandbox.paypal.com';
 }
 
-// Delayed email: fires 10 minutes after a booking when payment has not yet been received.
+function moylgrove_get_paypal_token() {
+	$mode      = get_option('moylgrove_paypal_mode', 'sandbox');
+	$client_id = get_option("moylgrove_paypal_client_id_$mode", '');
+	$secret    = get_option("moylgrove_paypal_secret_$mode", '');
+
+	if (!$client_id || !$secret) {
+		return new WP_Error('no_credentials', 'PayPal credentials not configured', ['status' => 500]);
+	}
+
+	$base_url = moylgrove_paypal_base_url();
+	$response = wp_remote_post("$base_url/v1/oauth2/token", [
+		'headers' => [
+			'Authorization' => 'Basic ' . base64_encode("$client_id:$secret"),
+			'Content-Type'  => 'application/x-www-form-urlencoded',
+		],
+		'body' => 'grant_type=client_credentials',
+	]);
+
+	if (is_wp_error($response)) return $response;
+	$body = json_decode(wp_remote_retrieve_body($response), true);
+	if (empty($body['access_token'])) {
+		return new WP_Error('token_error', 'Failed to get PayPal access token', ['status' => 500]);
+	}
+	return $body['access_token'];
+}
+
+function moylgrove_create_paypal_order(WP_REST_Request $request) {
+	global $wpdb;
+	$id = intval($request->get_param('id'));
+	if (!$id) return new WP_Error('no_id', 'Missing booking id', ['status' => 400]);
+
+	$table = $wpdb->prefix . 'moylgrove_forms';
+	$row   = $wpdb->get_row($wpdb->prepare("SELECT text FROM $table WHERE id = %d", $id));
+	if (!$row) return new WP_Error('not_found', 'Booking not found', ['status' => 404]);
+
+	$data       = json_decode($row->text, true);
+	$price      = (float)($data['totalPrice'] ?? 0);
+	$paid       = (float)($data['paid']       ?? 0);
+	$amount_due = round($price - $paid, 2);
+
+	if ($amount_due <= 0) return new WP_Error('nothing_due', 'Nothing to pay', ['status' => 400]);
+
+	$token = moylgrove_get_paypal_token();
+	if (is_wp_error($token)) return $token;
+
+	$base_url = moylgrove_paypal_base_url();
+	$response = wp_remote_post("$base_url/v2/checkout/orders", [
+		'headers' => [
+			'Content-Type'  => 'application/json',
+			'Authorization' => "Bearer $token",
+		],
+		'body' => json_encode([
+			'intent'         => 'CAPTURE',
+			'purchase_units' => [[
+				'amount'      => [
+					'currency_code' => 'GBP',
+					'value'         => number_format($amount_due, 2, '.', ''),
+				],
+				'description' => 'Tickets at Moylgrove Old School Hall',
+				'custom_id'   => (string)$id,
+			]],
+		]),
+	]);
+
+	if (is_wp_error($response)) return $response;
+	$body = json_decode(wp_remote_retrieve_body($response), true);
+	if (empty($body['id'])) {
+		return new WP_Error('paypal_error', 'Failed to create PayPal order', ['status' => 500]);
+	}
+	return rest_ensure_response(['id' => $body['id']]);
+}
+
+function moylgrove_capture_paypal_order(WP_REST_Request $request) {
+	global $wpdb;
+	$order_id = sanitize_text_field($request->get_param('orderID'));
+	$id       = intval($request->get_param('id'));
+	if (!$order_id || !$id) {
+		return new WP_Error('missing_params', 'Missing orderID or id', ['status' => 400]);
+	}
+
+	$token = moylgrove_get_paypal_token();
+	if (is_wp_error($token)) return $token;
+
+	$base_url = moylgrove_paypal_base_url();
+	$response = wp_remote_post("$base_url/v2/checkout/orders/$order_id/capture", [
+		'headers' => [
+			'Content-Type'  => 'application/json',
+			'Authorization' => "Bearer $token",
+		],
+		'body' => '{}',
+	]);
+
+	if (is_wp_error($response)) return $response;
+	$body = json_decode(wp_remote_retrieve_body($response), true);
+
+	if (($body['status'] ?? '') !== 'COMPLETED') {
+		return new WP_Error('capture_failed', 'Payment capture failed', ['status' => 500]);
+	}
+
+	// Sum captured amounts
+	$amount = 0;
+	foreach (($body['purchase_units'] ?? []) as $unit) {
+		foreach (($unit['payments']['captures'] ?? []) as $capture) {
+			$amount += (float)($capture['amount']['value'] ?? 0);
+		}
+	}
+
+	// Update paid amount in DB
+	$table = $wpdb->prefix . 'moylgrove_forms';
+	$row   = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $id));
+	if ($row) {
+		$data             = json_decode($row->text, true);
+		$previous         = (float)($data['paid'] ?? 0);
+		$data['paid']     = number_format(round($amount + $previous, 2), 2);
+		$wpdb->replace($table, [
+			'id'   => $id,
+			'time' => current_time('mysql'),
+			'name' => $row->name,
+			'text' => json_encode($data),
+		]);
+
+		// Cancel the pending "please pay" delayed email
+		wp_clear_scheduled_hook('moylgrove_delayed_email', [$id]);
+		$pending = get_transient("moylgrove_pending_email_$id");
+		delete_transient("moylgrove_pending_email_$id");
+
+		// Send paid confirmation using the template stored in the transient
+		if ($pending) {
+			$updated_state                     = $pending['state'];
+			$updated_state['fields']['paid']   = $data['paid'];
+			$updated_state['paid']             = (float)$data['paid'];
+			$price                             = (float)($data['totalPrice'] ?? 0);
+			$updated_state['bookingMode']      = ($updated_state['paid'] >= $price && $price > 0)
+				? MG_BOOKED_STATUS : MG_PAY_STATUS;
+
+			moylgrove_send_email(
+				$pending['email_template'],
+				$updated_state,
+				$pending['post_title'],
+				$pending['post_link'],
+				$pending['place'],
+				$pending['bcc']
+			);
+		}
+	}
+
+	return rest_ensure_response(['success' => true]);
+}
+
+// ---- Delayed email: fires 5 minutes after a booking when payment has not yet been received.
 add_action('moylgrove_delayed_email', 'moylgrove_send_delayed_email');
 
 function moylgrove_send_delayed_email($id) {

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a WordPress plugin for managing event seat bookings with PayPal payment processing. It is purely procedural PHP — no OOP, no build tools, no automated tests.
 
-**Dependency**: Requires the `wp-paypal` WordPress plugin to be installed and configured with PayPal credentials.
+**Payment**: Uses the PayPal JS SDK directly (no `wp-paypal` plugin needed). PayPal Client ID and Secret are configured in the Moylgrove Forms admin page (Sandbox and Live). Payment uses two WP REST endpoints: `POST /wp-json/moylgrove/v1/create-order` and `POST /wp-json/moylgrove/v1/capture-order`.
 
 ## Development
 

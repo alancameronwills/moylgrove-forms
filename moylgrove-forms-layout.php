@@ -18,14 +18,6 @@ function moylgrove_print_form(
   $done_submit = false;
   $fields = $state['fields'];
 
-  if (!get_post_meta(get_the_ID(), "wp-paypal-custom-field")) {
-    add_post_meta(
-      get_the_ID(),
-      'wp-paypal-custom-field',
-      '[wp_paypal_checkout]',
-      true
-    );
-  }
   ?><a name="form"></a>
       <form action='./#form' method='post' class='moylgrove-form' onsubmit="jQuery('#submit')[0].disabled=true;jQuery('#submit').val('...');">
 
@@ -34,14 +26,7 @@ formHeaderStyles($id, $state, $prices, $name);
 
 
 $template2 = rewrite_longs($template, $state, $fields);
-$urlForReturn = get_permalink( get_the_ID() );
-$timestamp = time();
-$fields['paypal'] = "
-		<div class='moylgrove-paypal-buttons'>
-			[wp_paypal_checkout 
-				description='Tickets for event at Moylgrove Old School Hall' 
-				amount='0' no_shipping='1' custom='444' return_url='$urlForReturn?paid=$timestamp#form']
-		</div>";
+$fields['paypal'] = "<div id='paypal-button-container'></div>";
 $fields['amountDue'] = "<span class='amount_due'></span>";
 
 echo preg_replace_callback(
@@ -491,6 +476,16 @@ function formHeaderStyles($id, $state, $prices, $name)
 		}
 	}
 	</style>
+	<?php
+	if (!empty($prices)) {
+		$pp_mode      = get_option('moylgrove_paypal_mode', 'sandbox');
+		$pp_client_id = get_option("moylgrove_paypal_client_id_$pp_mode", '');
+		if ($pp_client_id) {
+			$sdk_url = 'https://www.paypal.com/sdk/js?client-id=' . esc_attr($pp_client_id) . '&currency=GBP';
+			echo "<script src='" . esc_url($sdk_url) . "'></script>\n";
+		}
+	}
+	?>
 	<script>
 		
   function reveal() {
@@ -672,14 +667,40 @@ function setMenu() {
 				  let amountDue = "<?= number_format($state['price'] - $state['paid'], 2) ?>";
 				payPalButtons().
 				<?= $state['bookingMode'] == MG_PAY_STATUS ? "show" : "hide" ?>();
-			  	jQuery('.wppaypal_checkout_description_input')
-					.attr("value", 'Tickets for <?= $name ?> at Moylgrove Old School Hall');
-				jQuery('.wppaypal_checkout_amount_input')
-				  .attr("value",  amountDue );
 				jQuery('.amount_due').html(amountDue);
 			  	jQuery('.moylgrove-form input.calculated').attr('readonly', true);
 				recalculate();
 				window.scrollBy(0,-80);
+
+				<?php if ($state['bookingMode'] == MG_PAY_STATUS && !empty($prices)): ?>
+				if (typeof paypal !== 'undefined') {
+					paypal.Buttons({
+						createOrder: function() {
+							return fetch(<?= json_encode(rest_url('moylgrove/v1/create-order')) ?>, {
+								method: 'POST',
+								headers: {'Content-Type': 'application/json'},
+								body: JSON.stringify({id: window.id})
+							}).then(r => r.json()).then(data => data.id);
+						},
+						onApprove: function(data) {
+							document.querySelector('#paypal-button-container').innerHTML = '<p>Processing payment\u2026</p>';
+							var bookingId = window.id;
+							return fetch(<?= json_encode(rest_url('moylgrove/v1/capture-order')) ?>, {
+								method: 'POST',
+								headers: {'Content-Type': 'application/json'},
+								body: JSON.stringify({orderID: data.orderID, id: bookingId})
+							}).then(function(r) { return r.json(); }).then(function() {
+								// Use a timestamp so the browser always issues a fresh GET
+								// even if the URL is unchanged (same ?id= param).
+								location.replace(location.pathname + '?id=' + bookingId + '&_t=' + Date.now() + '#form');
+							}).catch(function() {
+								document.querySelector('#paypal-button-container').innerHTML =
+									'<p>Payment received. <a href="' + location.pathname + '?id=' + bookingId + '">Reload page to confirm.</a></p>';
+							});
+						}
+					}).render('#paypal-button-container');
+				}
+				<?php endif; ?>
 			  });
 			
 	</script>
@@ -692,7 +713,6 @@ function setMenu() {
 			  jQuery(() =>{
 			  	jQuery('.moylgrove-form input').attr('readonly', true);
 			  	jQuery('.moylgrove-form').addClass("readonly");
-			  	jQuery('.wppaypal_checkout_custom_input').attr("value", '<?= $id ?>');
 			    setMenu();
 				  reveal();
 			  });
@@ -707,10 +727,6 @@ function setMenu() {
 	} else { ?>
 		<script>
 			jQuery(() =>{
-				let amountField = jQuery('.wppaypal_checkout_amount_input');
-				let buttons = amountField.parent();
-				buttons.hide();
-				
 				setMenu();
 				window.seatCount = 0;
 				reveal();

@@ -94,14 +94,6 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
     if (!isset($id)) {
       $id = $wpdb->insert_id;
     }
-  } else {
-	// User is looking at a new or existing booking 
-    if (isset($_GET['paid'])) {
-		// User has just completed payment
-	    // Avoid sending another ack email if user hits Refresh:
-      ?>
-<script>location.replace("./#form");</script>
-		<?php }
   }
 
   //echo "==GET==$name==$id==";
@@ -157,18 +149,6 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
         // so we don't send a "please pay" email to someone who pays straight away.
         moylgrove_schedule_pending_email(
           $id,
-          $email_template,
-          $state,
-          get_the_title($current_post),
-          get_permalink($current_post) . "?id=$id",
-          "Moylgrove Old School Hall",
-          $bcc
-        );
-      } elseif (isset($_GET['paid'])) {
-        // Payment received: cancel the pending delayed email and send confirmation now.
-        wp_clear_scheduled_hook('moylgrove_delayed_email', [$id]);
-        delete_transient("moylgrove_pending_email_$id");
-        moylgrove_send_email(
           $email_template,
           $state,
           get_the_title($current_post),

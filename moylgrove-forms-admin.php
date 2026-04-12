@@ -1,8 +1,17 @@
 <?php
 add_action('admin_menu', 'moylgrove_forms_setup_menu');
- 
+add_action('admin_init', 'moylgrove_register_paypal_settings');
+
 function moylgrove_forms_setup_menu(){
     add_menu_page( 'Moylgrove Forms How to', 'Moylgrove Forms', 'manage_options', 'moylgrove-forms', 'moylgrove_forms_admin_page' );
+}
+
+function moylgrove_register_paypal_settings() {
+    register_setting('moylgrove_paypal', 'moylgrove_paypal_mode');
+    register_setting('moylgrove_paypal', 'moylgrove_paypal_client_id_live');
+    register_setting('moylgrove_paypal', 'moylgrove_paypal_secret_live');
+    register_setting('moylgrove_paypal', 'moylgrove_paypal_client_id_sandbox');
+    register_setting('moylgrove_paypal', 'moylgrove_paypal_secret_sandbox');
 }
  
 function moylgrove_forms_admin_page(){
@@ -217,6 +226,38 @@ and underneath that a <b>Custom bookings table</b>.</p>
 	<li><code>style</code> = <code>html</code> or <code>csv</code>. Default html.</li>
 	<li><code>sum</code> = list of numeric fields to be summed in the displayed table. Default 'adults kids'.</li>
 	<li><code>public</code> = Even users that are not logged in will see these fields by appending ?counters=1 to the URL.</li>
+
+<hr/>
+<h2>PayPal Settings</h2>
+<p>Create a PayPal app at <a href="https://developer.paypal.com/dashboard/applications/live" target="_blank">developer.paypal.com</a> to get your Client ID and Secret.</p>
+<form method="post" action="options.php">
+<?php settings_fields('moylgrove_paypal'); ?>
+<table class="form-table">
+<tr><th>Mode</th><td>
+<select name="moylgrove_paypal_mode">
+<option value="sandbox" <?php selected(get_option('moylgrove_paypal_mode','sandbox'), 'sandbox') ?>>Sandbox (testing)</option>
+<option value="live"    <?php selected(get_option('moylgrove_paypal_mode','sandbox'), 'live')    ?>>Live</option>
+</select>
+</td></tr>
+<tr><th>Live Client ID</th><td>
+<input type="text" name="moylgrove_paypal_client_id_live" size="80"
+  value="<?php echo esc_attr(get_option('moylgrove_paypal_client_id_live','')); ?>"/>
+</td></tr>
+<tr><th>Live Secret</th><td>
+<input type="password" name="moylgrove_paypal_secret_live" size="80"
+  value="<?php echo esc_attr(get_option('moylgrove_paypal_secret_live','')); ?>"/>
+</td></tr>
+<tr><th>Sandbox Client ID</th><td>
+<input type="text" name="moylgrove_paypal_client_id_sandbox" size="80"
+  value="<?php echo esc_attr(get_option('moylgrove_paypal_client_id_sandbox','')); ?>"/>
+</td></tr>
+<tr><th>Sandbox Secret</th><td>
+<input type="password" name="moylgrove_paypal_secret_sandbox" size="80"
+  value="<?php echo esc_attr(get_option('moylgrove_paypal_secret_sandbox','')); ?>"/>
+</td></tr>
+</table>
+<?php submit_button(); ?>
+</form>
 <?php
 }
 ?>
