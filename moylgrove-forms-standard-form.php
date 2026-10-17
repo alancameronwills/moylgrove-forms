@@ -10,12 +10,13 @@ function moylgrove_standard_form($attributes = [])
 			'bcc' => '',
 			'full' => '', // message to show when bookings exceeds max
 			'max' => 0, // allow this number of bookings before showing full
-			'prices' => 'adults 10 kids 0',
+			'prices' => '', // e.g. 'adults 10 kids 5'
 			'note' => ''
       	],
       	$attributes
     	)
   	);
+	$booklabel = $prices ? "Book and pay" : "Book seats";
 	ob_start();
 	?>
 		  
@@ -23,7 +24,7 @@ function moylgrove_standard_form($attributes = [])
 <div class="wp-block-columns has-dark-gray-color has-text-color has-background" style="background-color:#78d3f2"><!-- wp:column -->
 <div class="wp-block-column">
 <!-- wp:shortcode -->
-[moylgrove-form bcc='<?=$bcc?>' <?=empty($full)?'':"full='$full'"?> max=<?=$max?> prices='<?=$prices?>']
+[moylgrove-form bcc='<?=$bcc?>' <?=empty($full)?'':"full='$full'"?> max=<?=$max?> prices='<?=$prices?>' submit='<?= $booklabel ?>']
 	<h2 id='formHeader'>{state}Book your seat||You've booked your seat||You've cancelled your booking||Pay for your seat{/state}</h2>
 	<?php
 	if (strlen($prices)) {

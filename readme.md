@@ -1,7 +1,6 @@
 # Moylgrove Forms
 
 Provides a form for event bookings, with link to PayPal.
-Uses WP PayPal plugin, which should be set up with your PayPal credentials.
 
 ## Files
 

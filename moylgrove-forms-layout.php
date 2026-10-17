@@ -231,7 +231,7 @@ function rewrite_longs($template, $state, $fields)
 		}
 
 	    // Send menu field values and menu form
-    	$menu = str_replace(["<br />","</p>\n","\n<p>"], ["","",""], $matches[1]);
+    	$menu = str_replace(["<br />","</p>","<p>", "\n", "\r"], ["","",""], $matches[1]);
       	return "<div class='menu'><!--[ $menu_fields_json ,  $menu ]--></div>" ;
     },
     $template2
