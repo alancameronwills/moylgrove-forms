@@ -71,6 +71,15 @@ The `[moylgrove-form]` shortcode body uses a custom template language:
 - `?counters=1` — show anonymized seat counts without login
 - `?delete=id` — delete a cancelled booking
 
+### Submission Validation
+
+The browser's `required` attributes can't be relied on: the menu radios, the `{diet ?}` box inside `{menu}` and `menuSummary` are all built by JavaScript, so if the page's JS fails an incomplete form can be posted. So `moylgrove_validate_submission()` (in `moylgrove-forms-layout.php`) re-checks every POST against the form template before anything is stored or emailed:
+- Fields are required unless marked `?`; numeric fields are range-checked and normalised (`"02"` becomes `2`); emails are checked with `is_email`.
+- If `prices` is set, each seat (up to 8) needs a choice in every `{menu}` row group marked `"!"` (mirrors the JS rule that `seatCount` is the sum of the priced fields).
+- On failure nothing is saved and no email is sent. The form is redisplayed with what they typed and an error notice, and `moylgrove_notify_rejected()` emails info@moylgrove.wales the problems, submitted fields and browser, so we can help the person.
+- If you change the field syntax in `moylgrove_print_form`, keep the validator's regex and required-rules in step.
+- In the email template, a `{field}` that wasn't submitted renders blank (or its `{field default}`), not as a literal placeholder.
+
 ### Key Conventions
 
 - Hardcoded venue name ("Moylgrove Old School Hall") and org contact ("info@moylgrove.wales") appear in multiple files.

@@ -81,7 +81,31 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
   if (!empty($_POST)) {
     // Submitted form; user has created or updated a booking
     //echo "==POST==$name==$id==";
-	
+
+    // The browser should have checked the required fields, but if its scripts failed
+    // it may not have. Don't store (or send an email for) an incomplete booking.
+    $problems = moylgrove_validate_submission($template, $prices);
+    if (!empty($problems)) {
+      moylgrove_notify_rejected($problems, get_the_title($current_post), get_permalink($current_post));
+      // Show the form again with what they entered:
+      $entered = [];
+      foreach ($_POST as $key => $value) {
+        $entered[$key] = is_scalar($value) ? esc_attr(wp_unslash((string) $value)) : '';
+      }
+      $state = [
+        'seatsBooked' => 0,
+        'paid' => 0,
+        'price' => 0,
+        'bookingMode' => MG_BOOK_STATUS,
+        'fields' => $entered,
+      ];
+      $notice = "<p id='moylgrove-errors' style='background-color:orange;padding:4px'>"
+        . "Sorry, we had a problem saving your booking. Please try again or get in touch: <a href='mailto:info@moylgrove.wales'>info@moylgrove.wales</a></p>";
+      ob_start();
+      moylgrove_print_form($template, $state, $name, null, $seats, $submit, $full, $prices, 0, $notice);
+      return do_shortcode(ob_get_clean());
+    }
+
 	// Store all the <input> fields:
     $fields = json_encode($_POST);
     $wpdb->replace($table_name, [

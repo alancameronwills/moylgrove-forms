@@ -13,12 +13,14 @@ function moylgrove_print_form(
   $submit = "Book and pay", // label of submit button if used
   $full = '', // If set, prevents further bookings after $max
   $prices = '', // If set, requires payment before booking is completed
-  $max = 0 // Ignore $full until count of bookings is > $max
+  $max = 0, // Ignore $full until count of bookings is > $max
+  $notice = '' // HTML to show at the head of the form, e.g. what's wrong with a rejected submission
 ) {
   $done_submit = false;
   $fields = $state['fields'];
 
   ?><a name="form"></a>
+  <?= $notice ?>
       <form action='./#form' method='post' class='moylgrove-form' onsubmit="jQuery('#submit')[0].disabled=true;jQuery('#submit').val('...');">
 
 <?php
@@ -122,6 +124,125 @@ if (!empty($full)) {
   <?php
 }
 
+/// Server-side check of a submitted form ($_POST) against the form template,
+/// in case the browser's own checks didn't run (e.g. the page's JavaScript failed).
+/// Mirrors the rules in moylgrove_print_form: fields are required unless marked '?',
+/// and a menu choice is required for each seat (up to 8) in menu rows marked '!'.
+/// Tidies numeric values in $_POST (e.g. "02" becomes 2).
+/// Returns a list of problems; empty if the submission is OK.
+function moylgrove_validate_submission($template, $prices = '')
+{
+  $problems = [];
+  $form = rewrite_longs($template, ['bookingMode' => MG_BOOK_STATUS], $_POST);
+
+  preg_match_all(
+    '/\{ *([a-zA-Z0-9]+) *([a-zA-Z0-9]+)? *([0-9]+)? *([0-9]+)? *(\?)? *\}/',
+    $form,
+    $all,
+    PREG_SET_ORDER
+  );
+  foreach ($all as $m) {
+    $field = $m[1];
+    if ($field == 'paypal' || $field == 'amountDue') {
+      continue;
+    }
+    $typecode = isset($m[2]) ? substr($m[2], 0, 1) : "t";
+    if ($typecode != 't' && $typecode != 'e' && $typecode != 'n') {
+      continue; // calculated or submit
+    }
+    $optional = isset($m[5]) && $m[5] == '?';
+    $value = $_POST[$field] ?? '';
+    $value = is_string($value) ? trim($value) : '';
+
+    if ($value === '') {
+      if (!$optional) {
+        $problems[] = $field;
+      }
+    } elseif ($typecode == 'n') {
+      if (!is_numeric($value)) {
+        $problems[] = "$field (must be a number)";
+      } else {
+        $_POST[$field] = $value + 0;
+        if (
+          (isset($m[3]) && $value < $m[3]) ||
+          (isset($m[4]) && $value > $m[4])
+        ) {
+          $problems[] = "$field (out of range)";
+        }
+      }
+    } elseif ($typecode == 'e' && !is_email($value)) {
+      $problems[] = "$field (not a valid email address)";
+    }
+  }
+
+  // Menu choices are only asked for when there are seats to choose for,
+  // and the number of seats is the total of the priced fields.
+  $seatCount = 0;
+  $priceWords = preg_split('/\s+/', trim($prices));
+  for ($i = 0; $i < count($priceWords); $i += 2) {
+    $seatCount += (int) ($_POST[$priceWords[$i]] ?? 0);
+  }
+  if ($seatCount > 0 && preg_match('#\{menu\}([^¬]*?)\{/menu\}#', $template, $menu)) {
+    $items = json_decode(
+      '[' . str_replace(["<br />", "</p>", "<p>", "\n", "\r"], "", $menu[1]) . ']',
+      true
+    );
+    $requiredGroups = [];
+    foreach ((array) $items as $item) {
+      if (is_array($item) && !empty($item[0]) && ($item[3] ?? '') == '!') {
+        $requiredGroups[$item[0]] = true;
+      }
+    }
+    foreach (array_keys($requiredGroups) as $group) {
+      for ($seat = 1; $seat <= min($seatCount, 8); $seat++) {
+        // PHP turns spaces and dots in submitted names into underscores
+        $key = str_replace([' ', '.'], '_', $group) . "#$seat";
+        if (empty($_POST[$key])) {
+          $problems[] = "$group for seat $seat";
+        }
+      }
+    }
+  }
+  return $problems;
+}
+
+/// Tell the admin about a rejected submission, so we can help the person who tried to book.
+/// Includes whatever form details were submitted.
+function moylgrove_notify_rejected($problems, $post_title, $post_link)
+{
+  $posted = wp_unslash($_POST);
+
+  // A double-click or an impatient resubmit shouldn't send the same message twice:
+  $transient = 'moylgrove_rejected_' . md5(json_encode($posted));
+  if (get_transient($transient)) {
+    return;
+  }
+  set_transient($transient, 1, 10 * MINUTE_IN_SECONDS);
+
+  $message = "Someone tried to book on \"$post_title\" ($post_link) but the form was rejected, so nothing has been saved and they've had no confirmation.\n\n";
+  $message .= "Problems: " . implode(", ", $problems) . "\n\n";
+  $message .= "What they submitted:\n";
+  foreach ($posted as $k => $v) {
+    if (is_scalar($v) && trim((string) $v) !== '') {
+      $message .= "$k : $v\n";
+    }
+  }
+  $message .= "\nBrowser: " . ($_SERVER['HTTP_USER_AGENT'] ?? 'unknown') . "\n";
+  $message .= "Time: " . current_time('mysql') . "\n";
+
+  $headers = [];
+  $email = $posted['email'] ?? '';
+  if (is_string($email) && is_email($email)) {
+    $headers[] = "Reply-To: $email";
+  }
+  wp_mail(
+    "info@moylgrove.wales",
+    "Booking problem at Moylgrove: $post_title",
+    $message,
+    $headers
+  );
+}
+
 function moylgrove_send_email(
   $template, 
   $state,
@@ -155,7 +276,8 @@ function moylgrove_send_email(
     $message .= preg_replace_callback(
       '/\\{([^ }]+) *([^ }]*)\\}/',
       function ($matches) use($fields) {
-        $subs = $fields[$matches[1]] ?? ($matches[0] ?? "0");
+        // A field that wasn't submitted (e.g. an optional one) is blank, not left as a {placeholder}
+        $subs = $fields[$matches[1]] ?? "";
         if ($subs == "") {
           $subs = $matches[2] ?? "";
         }
@@ -472,6 +594,7 @@ function formHeaderStyles($id, $state, $prices, $name)
 			z-index: 1;
 		& h3 {
     		background-color: steelblue;
+        color: white;
 			border-top: none;
 		}
 	}
@@ -610,7 +733,7 @@ function setMenu() {
 		// 
 		let menuSummary = "";
 		for (let i= 1; i<=window.seatCount; i++) {
-			menuSummary += `Seat ${i}: ${seatSelections[i].join(", ")}; <br />\n`;
+			menuSummary += `Seat ${i}: ${(seatSelections[i] || []).join(", ")}; <br />\n`;
 		}
 		let ms = document.querySelector("#menuSummary");
 		if (ms) ms.value = menuSummary;
