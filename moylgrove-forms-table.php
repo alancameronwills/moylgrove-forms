@@ -1,16 +1,22 @@
 <?php
 
+/// Who may delete bookings, record refunds, or download the CSV of personal details.
+function moylgrove_can_manage_bookings()
+{
+  return current_user_can('edit_posts');
+}
+
 function record_refund($bookingId, $table_name)
 {
   global $wpdb;
   $rowSet = $wpdb->get_results(
-    $wpdb->prepare("SELECT * FROM $table_name WHERE id = %s", $bookingId)
+    $wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $bookingId)
   );
 
   foreach ($rowSet as $row) {
     $item = json_decode($row->text, true);
-    $totalPrice = $item['totalPrice'];
-    $paid = $item['paid'];
+    $totalPrice = $item['totalPrice'] ?? 0;
+    $paid = $item['paid'] ?? 0;
     if ($paid > $totalPrice) {
       $item['paid'] = $totalPrice;
       $fields = json_encode($item);
@@ -69,15 +75,30 @@ function moylgrove_forms_table_shortcode($attributes = [], $content = null)
   $table_name = $wpdb->prefix . 'moylgrove_forms';
 
   // Click the red X next to a cancelled booking to purge it:
-  if (array_key_exists('delete', $_GET)) {
-    $wpdb->delete($table_name, ['id' => $_GET['delete']]);
+  // Anyone can load this page, so these only act for a permitted user with a valid nonce
+  // (the links we generate carry one); otherwise the parameter is ignored.
+  if (array_key_exists('delete', $_GET) && moylgrove_can_manage_bookings()) {
+    $deleteId = absint($_GET['delete']);
+    if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', "moylgrove_delete_$deleteId")) {
+      wp_die('This link has expired. Please go back and reload the page.', '', ['response' => 403]);
+    }
+    // Only a cancelled booking (no seats) of this event may be purged
+    $row = $wpdb->get_row(
+      $wpdb->prepare("SELECT * FROM $table_name WHERE id = %d AND name = %s", $deleteId, $name)
+    );
+    if ($row && currentBookingState($row, $sum, '')['seatsBooked'] == 0) {
+      $wpdb->delete($table_name, ['id' => $deleteId]);
+    }
     wp_redirect(".");
     exit();
   }
 
   // Record that an overpayment has been refunded:
-  if (array_key_exists('refunded', $_GET)) {
-    $bookingId = $_GET['refunded'];
+  if (array_key_exists('refunded', $_GET) && moylgrove_can_manage_bookings()) {
+    $bookingId = absint($_GET['refunded']);
+    if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', "moylgrove_refund_$bookingId")) {
+      wp_die('This link has expired. Please go back and reload the page.', '', ['response' => 403]);
+    }
     record_refund($bookingId, $table_name);
     wp_redirect(".");
     exit();
@@ -130,9 +151,11 @@ function moylgrove_forms_table_shortcode($attributes = [], $content = null)
       padding: 6px;
       border-radius: 4px;
       background-color: white;}</style>";
-    echo $html ? "$style<p>$name</p><table class='bookings-table'>" : "<pre>$name\n";
+    // Everything below comes from what people typed into forms, so it's escaped for display
+    // (the plain-text style is shown inside <pre>, so it needs it too)
+    echo $html ? "$style<p>" . esc_html($name) . "</p><table class='bookings-table'>" : "<pre>" . esc_html($name) . "\n";
     $pp = $html ? ["<tr><td>", "</td><td>", "</td></tr>\n"] : ["", ",", "\n"];
-    echo $pp[0] . implode($pp[1], $heads) . $pp[2];
+    echo $pp[0] . implode($pp[1], array_map('esc_html', $heads)) . $pp[2];
 
     $sums = [];
     foreach ($items as $item) {
@@ -142,7 +165,8 @@ function moylgrove_forms_table_shortcode($attributes = [], $content = null)
       $totalPrice = 0;
       $paid = 0;
       foreach ($heads as $head) {
-        $cell = str_replace(",", ";", $item[$head] ?? "");
+        $cell = $item[$head] ?? "";
+        $cell = is_scalar($cell) ? str_replace(",", ";", (string) $cell) : "";
         $number = floatval($cell);
         if ($number < 1E6 && $head != "id" && $head != "timestamp") { // exclude phone numbers
           $sums[$head] = ($sums[$head] ?? 0) + $number;
@@ -151,10 +175,10 @@ function moylgrove_forms_table_shortcode($attributes = [], $content = null)
           $rowsum += $number;
         }
         if ($head == 'id') {
-          $cells[] = "<a href='./?id=$cell' target='_blank'>$cell</a>";
-          $rowid = $cell;
+          $rowid = absint($cell);
+          $cells[] = "<a href='./?id=$rowid' target='_blank'>$rowid</a>";
         } else {
-          $cells[] = $cell;
+          $cells[] = esc_html($cell);
         }
         if ($head == 'totalPrice') {
           $totalPrice = floatval($cell);
@@ -164,10 +188,14 @@ function moylgrove_forms_table_shortcode($attributes = [], $content = null)
         }
       }
       if ($html) {
-        if ($paid > $totalPrice) {
-          $cells[] = "<span onclick='refund($rowid, $paid-$totalPrice)' class='rowButton'>Refund</span>";
-        } else if ($rowsum == 0 && $fullTable) {
-          $cells[] = "<a href='./?delete=$rowid'><span class='rowButton'>X</span></a>";
+        if (moylgrove_can_manage_bookings()) {
+          if ($paid > $totalPrice) {
+            $nonce = wp_create_nonce("moylgrove_refund_$rowid");
+            $cells[] = "<span onclick='refund($rowid, $paid-$totalPrice, \"$nonce\")' class='rowButton'>Refund</span>";
+          } else if ($rowsum == 0) {
+            $nonce = wp_create_nonce("moylgrove_delete_$rowid");
+            $cells[] = "<a href='./?delete=$rowid&_wpnonce=$nonce'><span class='rowButton'>X</span></a>";
+          }
         }
       }
       echo $pp[0] . implode($pp[1], $cells) . $pp[2];
@@ -190,7 +218,7 @@ function moylgrove_forms_table_shortcode($attributes = [], $content = null)
       update_option("seatCount_" . $name, $total);
     }
   }
-  echo "<button style='color:black;border-radius:10px;padding:0 10px;'><a href='/wp-content/plugins/moylgrove-forms/csv.php?event=$name'>CSV</a></button>";
+  echo "<button style='color:black;border-radius:10px;padding:0 10px;'><a href='/wp-content/plugins/moylgrove-forms/csv.php?event=" . urlencode($name) . "'>CSV</a></button>";
 ?>
   <script>
     jQuery(() => {
@@ -199,9 +227,10 @@ function moylgrove_forms_table_shortcode($attributes = [], $content = null)
       jQuery(".bookings-table").css("font-size", "small");
     });
 
-    function refund(id, amount) {
+    function refund(id, amount, nonce) {
       let refundDialog = document.getElementById("refundDialog");
       refundDialog.bookingId = id;
+      refundDialog.nonce = nonce;
       let refundAmountSpan = document.getElementById("refundAmountSpan");
       refundAmountSpan.innerText = amount;
       refundDialog.showModal();
@@ -214,7 +243,7 @@ function moylgrove_forms_table_shortcode($attributes = [], $content = null)
 
     function doneRefund() {
       let refundDialog = document.getElementById("refundDialog");
-      location = `./?refunded=${refundDialog.bookingId}`;
+      location = `./?refunded=${refundDialog.bookingId}&_wpnonce=${refundDialog.nonce}`;
     }
   </script>
   <style>

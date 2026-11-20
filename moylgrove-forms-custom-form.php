@@ -74,7 +74,9 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
       $attributes
     )
   );
-  //echo ("===" . get_queried_object()->post_name . "===");
+  // The id arrives from the URL, a cookie or the shortcode, so it's untrusted. It is printed
+  // into the page's JavaScript, so only a positive whole number is allowed through.
+  $id = (is_scalar($id) && ctype_digit((string) $id) && (int) $id > 0) ? (int) $id : null;
   global $wpdb;
   $table_name = $wpdb->prefix . 'moylgrove_forms';
 
@@ -90,7 +92,8 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
       // Show the form again with what they entered:
       $entered = [];
       foreach ($_POST as $key => $value) {
-        $entered[$key] = is_scalar($value) ? esc_attr(wp_unslash((string) $value)) : '';
+        // moylgrove_print_form escapes values when it prints them
+        $entered[$key] = is_scalar($value) ? wp_unslash((string) $value) : '';
       }
       $state = [
         'seatsBooked' => 0,
@@ -107,7 +110,27 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
     }
 
 	// Store all the <input> fields:
-    $fields = json_encode($_POST);
+    // Only update a booking that exists for this event; an id that doesn't match one
+    // starts a new booking instead of overwriting someone else's row.
+    $existing = isset($id)
+      ? $wpdb->get_row($wpdb->prepare("SELECT text FROM $table_name WHERE id = %d AND name = %s", $id, $name))
+      : null;
+    if (!$existing) {
+      $id = null;
+    }
+
+    // The price and the amount paid are ours to decide, never the browser's: whatever the
+    // form posted for them is discarded. The price is recomputed from the counts, and the
+    // amount paid is whatever PayPal has already credited to this booking.
+    $data = wp_unslash($_POST);
+    [$total, $calculation] = moylgrove_compute_price($prices, $data);
+    $previous = $existing ? (json_decode($existing->text, true) ?: []) : [];
+    $previousPaid = $previous['paid'] ?? 0;
+    $data['totalPrice'] = number_format($total, 2, '.', '');
+    $data['calculation'] = $calculation;
+    $data['paid'] = number_format(is_numeric($previousPaid) ? (float) $previousPaid : 0, 2, '.', '');
+
+    $fields = json_encode($data);
     $wpdb->replace($table_name, [
       'id' => $id,
       'time' => current_time('mysql'),

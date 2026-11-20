@@ -50,8 +50,18 @@ function moylgrove_show_csv($rows, $name, $sum)
 require __DIR__ . '/../../../wp-load.php';
 nocache_headers();
 
+// The export contains everyone's personal details: only for permitted logged-in users
+if (!moylgrove_can_manage_bookings()) {
+  status_header(403);
+  exit('Please log in to download the bookings.');
+}
+
 $filename = "bookings.csv";
-$name = $_GET['event'];
+$name = sanitize_text_field(wp_unslash($_GET['event'] ?? ''));
+if ($name === '') {
+  status_header(400);
+  exit('Missing event.');
+}
 $sums = "adults kids meals paid";
 if (isset($_GET['sum'])) {
   $sums = $_GET['sum'];

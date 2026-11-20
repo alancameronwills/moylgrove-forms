@@ -51,8 +51,12 @@ echo preg_replace_callback(
     ) {
       $value = "$fields[$field]";
     }
-    if (strpos($value, '<') === false) {
+    // Only these two are HTML we generated; anything else may be user input and is escaped
+    if (!in_array($field, ['paypal', 'amountDue'], true)) {
       $typecode = isset($matches[2]) ? substr($matches[2], 0, 1) : "t";
+      if (!in_array($typecode, ['e', 't', 'n', 'c', 's'], true)) {
+        $typecode = "t"; // unknown types are text, as the validator assumes
+      }
       switch ($typecode) {
         case "e":
         case "t":
@@ -77,6 +81,19 @@ echo preg_replace_callback(
           if (!isset($matches[5]) || $matches[5] != '?') {
             $modifier .= " required";
           }
+          // Keys to refuse: no minus if the minimum isn't negative; whole numbers only for priced fields
+          $blocked = (isset($matches[3]) && $matches[3] !== '') ? '-' : '';
+          $priceWords = preg_split('/\s+/', trim($prices));
+          $isPriced = false;
+          for ($p = 0; $p < count($priceWords); $p += 2) {
+            if ($priceWords[$p] === $field) {
+              $isPriced = true;
+            }
+          }
+          if ($isPriced) {
+            $blocked .= '.eE';
+          }
+          $modifier .= " onkeydown='return mgBlockKeys(event, \"$blocked\")'";
           if (strpos($prices, $field) !== false) {
             $modifier .= " onchange='recalculate()'";
           } else {
@@ -99,7 +116,7 @@ echo preg_replace_callback(
           $done_submit = true;
           break;
       }
-      return "<input type='$type' $modifier id='$field' name='$field' value='$value' />";
+      return "<input type='$type' $modifier id='$field' name='$field' value='" . esc_attr($value) . "' />";
     } else {
       return $value;
     }
@@ -147,8 +164,11 @@ function moylgrove_validate_submission($template, $prices = '')
       continue;
     }
     $typecode = isset($m[2]) ? substr($m[2], 0, 1) : "t";
-    if ($typecode != 't' && $typecode != 'e' && $typecode != 'n') {
+    if ($typecode == 'c' || $typecode == 's') {
       continue; // calculated or submit
+    }
+    if ($typecode != 'e' && $typecode != 'n') {
+      $typecode = 't'; // as moylgrove_print_form, anything else is text
     }
     $optional = isset($m[5]) && $m[5] == '?';
     $value = $_POST[$field] ?? '';
@@ -159,14 +179,15 @@ function moylgrove_validate_submission($template, $prices = '')
         $problems[] = $field;
       }
     } elseif ($typecode == 'n') {
-      if (!is_numeric($value)) {
-        $problems[] = "$field (must be a number)";
+      // Whole numbers only; negative numbers only if the template's minimum allows
+      if (!preg_match('/^[+-]?\d{1,9}$/', $value)) {
+        $problems[] = "$field (must be a whole number)";
       } else {
-        $_POST[$field] = $value + 0;
-        if (
-          (isset($m[3]) && $value < $m[3]) ||
-          (isset($m[4]) && $value > $m[4])
-        ) {
+        $number = (int) $value;
+        $_POST[$field] = $number;
+        $min = (isset($m[3]) && $m[3] !== '') ? (int) $m[3] : 0;
+        $max = (isset($m[4]) && $m[4] !== '') ? (int) $m[4] : null;
+        if ($number < $min || ($max !== null && $number > $max)) {
           $problems[] = "$field (out of range)";
         }
       }
@@ -180,7 +201,8 @@ function moylgrove_validate_submission($template, $prices = '')
   $seatCount = 0;
   $priceWords = preg_split('/\s+/', trim($prices));
   for ($i = 0; $i < count($priceWords); $i += 2) {
-    $seatCount += (int) ($_POST[$priceWords[$i]] ?? 0);
+    $posted = $_POST[$priceWords[$i]] ?? 0;
+    $seatCount += is_scalar($posted) ? max(0, (int) $posted) : 0;
   }
   if ($seatCount > 0 && preg_match('#\{menu\}([^¬]*?)\{/menu\}#', $template, $menu)) {
     $items = json_decode(
@@ -188,22 +210,49 @@ function moylgrove_validate_submission($template, $prices = '')
       true
     );
     $requiredGroups = [];
+    $options = []; // group => valid option values
     foreach ((array) $items as $item) {
-      if (is_array($item) && !empty($item[0]) && ($item[3] ?? '') == '!') {
-        $requiredGroups[$item[0]] = true;
+      if (is_array($item) && !empty($item[0]) && !empty($item[1])) {
+        $options[$item[0]][] = (string) $item[1];
+        if (($item[3] ?? '') == '!') {
+          $requiredGroups[$item[0]] = true;
+        }
       }
     }
-    foreach (array_keys($requiredGroups) as $group) {
-      for ($seat = 1; $seat <= min($seatCount, 8); $seat++) {
+    foreach ($options as $group => $valid) {
+      for ($seat = 1; $seat <= 8; $seat++) {
         // PHP turns spaces and dots in submitted names into underscores
         $key = str_replace([' ', '.'], '_', $group) . "#$seat";
-        if (empty($_POST[$key])) {
+        $choice = wp_unslash($_POST[$key] ?? '');
+        if (!is_string($choice) || ($choice !== '' && !in_array($choice, $valid, true))) {
+          $problems[] = "$group for seat $seat (not a valid choice)";
+        } elseif ($choice === '' && isset($requiredGroups[$group]) && $seat <= $seatCount) {
           $problems[] = "$group for seat $seat";
         }
       }
     }
   }
   return $problems;
+}
+
+/// Work out what a submission costs, from the shortcode's `prices` ("adults 15 kids 10")
+/// and the submitted counts. The browser shows the same sum (recalculate() in the page script)
+/// but it is only for display: the figures we store come from here.
+/// Returns [total, calculation text].
+function moylgrove_compute_price($prices, $posted)
+{
+  $total = 0;
+  $items = [];
+  $words = preg_split('/\s+/', trim($prices));
+  for ($i = 0; $i + 1 < count($words); $i += 2) {
+    $field = $words[$i];
+    $price = is_numeric($words[$i + 1]) ? max(0, (float) $words[$i + 1]) : 0;
+    $count = $posted[$field] ?? 0;
+    $count = (is_scalar($count) && is_numeric($count)) ? max(0, (int) $count) : 0;
+    $total += $count * $price;
+    $items[] = "$count x $field @ " . number_format($price, 2, '.', '');
+  }
+  return [round($total, 2), trim($prices) === '' ? "0" : implode(' + ', $items)];
 }
 
 /// Tell the admin about a rejected submission, so we can help the person who tried to book.
@@ -349,7 +398,7 @@ function rewrite_longs($template, $state, $fields)
 	    	$menu_fields = array_filter($fields, 
     	    function ($key) { return strpos($key, "#")!=false;},
         	2);
-	      	$menu_fields_json = json_encode($menu_fields);
+	      	$menu_fields_json = json_encode($menu_fields, JSON_HEX_TAG | JSON_HEX_AMP); // HEX flags stop "-->" in a value closing the comment
 		}
 
 	    // Send menu field values and menu form
@@ -611,6 +660,19 @@ function formHeaderStyles($id, $state, $prices, $name)
 	?>
 	<script>
 		
+  // onkeydown for number inputs: refuse typing any of the characters in `blocked`.
+  // Typing a digit over a lone "0" replaces it, so "2" doesn't become "20".
+  function mgBlockKeys(event, blocked) {
+    if (event.ctrlKey || event.metaKey || event.altKey) return true;
+    if (event.key.length != 1) return true;
+    if (blocked.indexOf(event.key) >= 0) return false;
+    let input = event.target;
+    if (/^[0-9]$/.test(event.key) && !input.readOnly && input.value === "0") {
+      input.value = "";
+    }
+    return true;
+  }
+
   function reveal() {
 	jQuery(".moylgrove-form input[type=radio]").prop("required", false);
     let places =  window.seatCount || 0;
