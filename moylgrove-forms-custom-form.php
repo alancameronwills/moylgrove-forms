@@ -122,7 +122,7 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
     // The price and the amount paid are ours to decide, never the browser's: whatever the
     // form posted for them is discarded. The price is recomputed from the counts, and the
     // amount paid is whatever PayPal has already credited to this booking.
-    $data = wp_unslash($_POST);
+    $data = moylgrove_clean_submission($template, wp_unslash($_POST));
     [$total, $calculation] = moylgrove_compute_price($prices, $data);
     $previous = $existing ? (json_decode($existing->text, true) ?: []) : [];
     $previousPaid = $previous['paid'] ?? 0;

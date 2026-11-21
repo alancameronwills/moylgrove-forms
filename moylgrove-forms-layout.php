@@ -66,6 +66,7 @@ echo preg_replace_callback(
           if (!isset($matches[5]) || $matches[5] != '?') {
             $modifier .= " required";
           }
+          $modifier .= " maxlength='" . ($typecode == 't' ? MG_MAX_TEXT : MG_MAX_EMAIL) . "'";
           $type = $typecode == 't' ? "text" : "email";
           break;
         case "n":
@@ -141,6 +142,73 @@ if (!empty($full)) {
   <?php
 }
 
+const MG_MAX_TEXT = 500; // longest text field we accept
+const MG_MAX_EMAIL = 254;
+
+/// The rows of the template's {menu}: [["group", "option_id", "Label", "!"], ...]; [] if none.
+function moylgrove_menu_items($template)
+{
+  if (!preg_match('#\{menu\}([^¬]*?)\{/menu\}#', $template, $menu)) {
+    return [];
+  }
+  $items = json_decode(
+    '[' . str_replace(["<br />", "</p>", "<p>", "\n", "\r"], "", $menu[1]) . ']',
+    true
+  );
+  return is_array($items) ? $items : [];
+}
+
+/// PHP turns spaces and dots in submitted names into underscores
+function moylgrove_posted_name($name)
+{
+  return str_replace([' ', '.'], '_', $name);
+}
+
+/// Keep only what the form could have sent: its declared fields and its menu choices.
+/// Anything else in $posted (made-up names, arrays, oversized values) is dropped, so it
+/// can't be stored, emailed or shown in the bookings table.
+/// Call before setting the fields we decide ourselves (paid, totalPrice, calculation).
+function moylgrove_clean_submission($template, $posted)
+{
+  $allowed = [];
+  preg_match_all(
+    '/\{ *([a-zA-Z0-9]+) *([a-zA-Z0-9]+)? *([0-9]+)? *([0-9]+)? *(\?)? *\}/',
+    $template,
+    $all,
+    PREG_SET_ORDER
+  );
+  foreach ($all as $m) {
+    $typecode = isset($m[2]) ? substr($m[2], 0, 1) : "t";
+    if ($typecode == 'c' || $typecode == 's' || in_array($m[1], ['paypal', 'amountDue', 'state', 'menu'], true)) {
+      continue; // calculated, button or generated: never taken from the browser
+    }
+    $allowed[$m[1]] = true;
+  }
+  $items = moylgrove_menu_items($template);
+  foreach ($items as $item) {
+    if (!is_array($item) || empty($item[1])) {
+      continue;
+    }
+    $option = moylgrove_posted_name($item[1]);
+    $group = !empty($item[0]) ? moylgrove_posted_name($item[0]) : $option;
+    $allowed["#$option"] = true; // how many seats chose this option
+    for ($seat = 1; $seat <= 8; $seat++) {
+      $allowed["$group#$seat"] = true;
+    }
+  }
+  if (!empty($items)) {
+    $allowed['menuSummary'] = true;
+  }
+
+  $clean = [];
+  foreach ($posted as $key => $value) {
+    if (isset($allowed[$key]) && is_scalar($value)) {
+      $clean[$key] = is_string($value) ? mb_substr($value, 0, 2000) : $value;
+    }
+  }
+  return $clean;
+}
+
 /// Server-side check of a submitted form ($_POST) against the form template,
 /// in case the browser's own checks didn't run (e.g. the page's JavaScript failed).
 /// Mirrors the rules in moylgrove_print_form: fields are required unless marked '?',
@@ -191,6 +259,8 @@ function moylgrove_validate_submission($template, $prices = '')
           $problems[] = "$field (out of range)";
         }
       }
+    } elseif (mb_strlen($value) > ($typecode == 'e' ? MG_MAX_EMAIL : MG_MAX_TEXT)) {
+      $problems[] = "$field (too long)";
     } elseif ($typecode == 'e' && !is_email($value)) {
       $problems[] = "$field (not a valid email address)";
     }
@@ -204,11 +274,8 @@ function moylgrove_validate_submission($template, $prices = '')
     $posted = $_POST[$priceWords[$i]] ?? 0;
     $seatCount += is_scalar($posted) ? max(0, (int) $posted) : 0;
   }
-  if ($seatCount > 0 && preg_match('#\{menu\}([^¬]*?)\{/menu\}#', $template, $menu)) {
-    $items = json_decode(
-      '[' . str_replace(["<br />", "</p>", "<p>", "\n", "\r"], "", $menu[1]) . ']',
-      true
-    );
+  $items = moylgrove_menu_items($template);
+  if ($seatCount > 0 && !empty($items)) {
     $requiredGroups = [];
     $options = []; // group => valid option values
     foreach ((array) $items as $item) {
@@ -222,7 +289,7 @@ function moylgrove_validate_submission($template, $prices = '')
     foreach ($options as $group => $valid) {
       for ($seat = 1; $seat <= 8; $seat++) {
         // PHP turns spaces and dots in submitted names into underscores
-        $key = str_replace([' ', '.'], '_', $group) . "#$seat";
+        $key = moylgrove_posted_name($group) . "#$seat";
         $choice = wp_unslash($_POST[$key] ?? '');
         if (!is_string($choice) || ($choice !== '' && !in_array($choice, $valid, true))) {
           $problems[] = "$group for seat $seat (not a valid choice)";
@@ -301,7 +368,8 @@ function moylgrove_send_email(
   $bcc = ''
 ) {
   $fields = $state['fields'];
-  if (!isset($fields['email'])) {
+  // Only send to a proper address (also keeps newlines out of the mail headers)
+  if (!isset($fields['email']) || !is_string($fields['email']) || !is_email($fields['email'])) {
     return;
   }
   $message = "";
