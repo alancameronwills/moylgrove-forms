@@ -162,6 +162,32 @@ function moylgrove_create_paypal_order(WP_REST_Request $request) {
 	return rest_ensure_response(['id' => $body['id']]);
 }
 
+/// Does this PayPal order (as returned by PayPal) belong to booking $id? create-order stamps
+/// the booking id into the order as custom_id; every unit must carry it.
+function moylgrove_order_is_for_booking($order, $id) {
+	$units = is_array($order) ? ($order['purchase_units'] ?? []) : [];
+	if (!is_array($units) || count($units) == 0) return false;
+	foreach ($units as $unit) {
+		if (!is_array($unit) || (string)($unit['custom_id'] ?? '') !== (string)$id) return false;
+	}
+	return true;
+}
+
+/// Pounds actually captured for booking $id in a captured order: only completed captures,
+/// in GBP, in units stamped with this booking.
+function moylgrove_captured_amount($order, $id) {
+	$amount = 0;
+	foreach ((is_array($order) ? ($order['purchase_units'] ?? []) : []) as $unit) {
+		if (!is_array($unit) || (string)($unit['custom_id'] ?? '') !== (string)$id) continue;
+		foreach (($unit['payments']['captures'] ?? []) as $capture) {
+			if (($capture['status'] ?? '') === 'COMPLETED' && ($capture['amount']['currency_code'] ?? '') === 'GBP') {
+				$amount += (float)($capture['amount']['value'] ?? 0);
+			}
+		}
+	}
+	return round($amount, 2);
+}
+
 function moylgrove_capture_paypal_order(WP_REST_Request $request) {
 	global $wpdb;
 	$order_id = sanitize_text_field($request->get_param('orderID'));
@@ -181,7 +207,17 @@ function moylgrove_capture_paypal_order(WP_REST_Request $request) {
 	if (is_wp_error($token)) return $token;
 
 	$base_url = moylgrove_paypal_base_url();
-	$response = wp_remote_post("$base_url/v2/checkout/orders/$order_id/capture", [
+
+	// Look at the order before taking the money: it must be this booking's, not someone else's
+	$order_response = wp_remote_get("$base_url/v2/checkout/orders/" . rawurlencode($order_id), [
+		'headers' => ['Authorization' => "Bearer $token"],
+	]);
+	if (is_wp_error($order_response)) return $order_response;
+	if (!moylgrove_order_is_for_booking(json_decode(wp_remote_retrieve_body($order_response), true), $id)) {
+		return new WP_Error('wrong_order', 'That payment is not for this booking', ['status' => 400]);
+	}
+
+	$response = wp_remote_post("$base_url/v2/checkout/orders/" . rawurlencode($order_id) . "/capture", [
 		'headers' => [
 			'Content-Type'  => 'application/json',
 			'Authorization' => "Bearer $token",
@@ -197,11 +233,10 @@ function moylgrove_capture_paypal_order(WP_REST_Request $request) {
 	}
 
 	// Sum captured amounts
-	$amount = 0;
-	foreach (($body['purchase_units'] ?? []) as $unit) {
-		foreach (($unit['payments']['captures'] ?? []) as $capture) {
-			$amount += (float)($capture['amount']['value'] ?? 0);
-		}
+	$amount = moylgrove_captured_amount($body, $id);
+	if ($amount <= 0) {
+		error_log("moylgrove-forms: PayPal order $order_id for booking $id captured nothing creditable");
+		return new WP_Error('capture_failed', 'Payment capture failed', ['status' => 500]);
 	}
 
 	// Update paid amount in DB

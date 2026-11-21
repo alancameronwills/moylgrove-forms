@@ -130,6 +130,12 @@ switch ($cmd) {
     out(true);
     break;
 
+  case 'orderchecks':
+    // moylgrove_order_is_for_booking / moylgrove_captured_amount on an order given as JSON
+    $order = json_decode($argv[2], true);
+    out(['for' => moylgrove_order_is_for_booking($order, $argv[3]), 'amount' => moylgrove_captured_amount($order, $argv[3])]);
+    break;
+
   case 'mails':
     $lines = file_exists($mailLog) ? file($mailLog, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) : [];
     out(array_map(function ($l) {
