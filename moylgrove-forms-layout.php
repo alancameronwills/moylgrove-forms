@@ -202,6 +202,10 @@ function moylgrove_clean_submission($template, $posted)
 
   $clean = [];
   foreach ($posted as $key => $value) {
+    // "#option" is a count of seats, so only a small whole number can be genuine
+    if (is_scalar($value) && is_string($key) && $key !== '' && $key[0] === '#' && !(ctype_digit((string) $value) && $value <= 8)) {
+      continue;
+    }
     if (isset($allowed[$key]) && is_scalar($value)) {
       $clean[$key] = is_string($value) ? mb_substr($value, 0, 2000) : $value;
     }
@@ -801,7 +805,7 @@ function setMenu() {
         "beforeend",
 		  // Hidden sum for the item
         `<div class="menu-title option" style="grid-column:1;grid-row:${rowNumber}">
-            <input type="number" name="#${item[1]}" class="menu-count" value="${fields[item[1]] || ''}">
+            <input type="number" name="#${item[1]}" class="menu-count" value="${+fields[item[1]] || ''}">
             ${item[2]}
           </div>`,
       );

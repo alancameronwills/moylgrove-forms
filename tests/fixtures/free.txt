@@ -1,0 +1,7 @@
+[moylgrove-form]
+<h2>{state}S-NEW||S-DONE||S-CANCEL||S-PAY{/state}</h2>
+<div class="row"><label>Adults {adults n 0 10}</label><label>Kids {kids n 0 10 ?}</label></div>
+<div class="row"><label>First {first t 20}</label><label>Last {last t 20 ?}</label><label>Email {email e 40}</label></div>
+=====
+Thanks {first}
+[/moylgrove-form]

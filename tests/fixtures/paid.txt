@@ -1,0 +1,17 @@
+[moylgrove-form prices="adults 15 kids 10" seats="adults kids"]
+<h2>{state}S-NEW||S-DONE||S-CANCEL||S-PAY{/state}</h2>
+{paypal}
+<div class="row"><label>Adults {adults n 0 10}</label><label>Kids {kids n 0 10 ?}</label></div>
+{menu}
+["", "", "<h3>Main</h3>"],
+["main", "turkey", "Turkey", "!"],
+["main", "veggie", "Veggie"],
+["", "gf", "Gluten free"],
+["", "", "Anything else:{diet ?}"]
+{/menu}
+<div class="row"><label>First {first t 20}</label><label>Last {last t 20}</label></div>
+<div class="row"><label>Email {email e 40}</label><label>Phone {phone t 20 ?}</label></div>
+<div class="row">Total {totalPrice c 6} {calculation c 30} Paid {paid c 6}</div>
+=====
+Thanks {first}, total {totalPrice}, paid {paid}. {menuSummary}
+[/moylgrove-form]
