@@ -266,6 +266,14 @@ function moylgrove_validate_submission($template, $prices = '')
     }
   }
 
+  // Text that isn't valid UTF-8 can't be stored as JSON
+  foreach ($_POST as $value) {
+    if (is_string($value) && !mb_check_encoding($value, 'UTF-8')) {
+      $problems[] = "a field contains characters we can't read";
+      break;
+    }
+  }
+
   // Menu choices are only asked for when there are seats to choose for,
   // and the number of seats is the total of the priced fields.
   $seatCount = 0;
@@ -329,7 +337,8 @@ function moylgrove_notify_rejected($problems, $post_title, $post_link)
   $posted = wp_unslash($_POST);
 
   // A double-click or an impatient resubmit shouldn't send the same message twice:
-  $transient = 'moylgrove_rejected_' . md5(json_encode($posted));
+  // (serialize, not json_encode: that fails on invalid UTF-8 and every such post would share one key)
+  $transient = 'moylgrove_rejected_' . md5(serialize($posted));
   if (get_transient($transient)) {
     return;
   }

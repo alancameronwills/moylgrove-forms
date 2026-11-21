@@ -88,25 +88,7 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
     // it may not have. Don't store (or send an email for) an incomplete booking.
     $problems = moylgrove_validate_submission($template, $prices);
     if (!empty($problems)) {
-      moylgrove_notify_rejected($problems, get_the_title($current_post), get_permalink($current_post));
-      // Show the form again with what they entered:
-      $entered = [];
-      foreach ($_POST as $key => $value) {
-        // moylgrove_print_form escapes values when it prints them
-        $entered[$key] = is_scalar($value) ? wp_unslash((string) $value) : '';
-      }
-      $state = [
-        'seatsBooked' => 0,
-        'paid' => 0,
-        'price' => 0,
-        'bookingMode' => MG_BOOK_STATUS,
-        'fields' => $entered,
-      ];
-      $notice = "<p id='moylgrove-errors' style='background-color:orange;padding:4px'>"
-        . "Sorry, we had a problem saving your booking. Please try again or get in touch: <a href='mailto:info@moylgrove.wales'>info@moylgrove.wales</a></p>";
-      ob_start();
-      moylgrove_print_form($template, $state, $name, null, $seats, $submit, $full, $prices, 0, $notice);
-      return do_shortcode(ob_get_clean());
+      return moylgrove_rejected_form($problems, $current_post, $template, $name, $seats, $submit, $full, $prices);
     }
 
 	// Store all the <input> fields:
@@ -130,16 +112,25 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
     $data['calculation'] = $calculation;
     $data['paid'] = number_format(is_numeric($previousPaid) ? (float) $previousPaid : 0, 2, '.', '');
 
+    // Never report a booking as made unless it really was saved. The column is 64KB TEXT,
+    // and a longer value would be silently cut, leaving JSON that can't be read back.
     $fields = json_encode($data);
-    $wpdb->replace($table_name, [
-      'id' => $id,
-      'time' => current_time('mysql'),
-      'name' => $name, // WP stub of this event page
-      'text' => $fields,
-    ]);
+    $saved = $fields !== false && strlen($fields) < 60000
+      && $wpdb->replace($table_name, [
+        'id' => $id,
+        'time' => current_time('mysql'),
+        'name' => $name, // WP stub of this event page
+        'text' => $fields,
+      ]) !== false;
     // Get the auto-incremented ID:
-    if (!isset($id)) {
+    if ($saved && !isset($id)) {
       $id = $wpdb->insert_id;
+      $saved = $id > 0;
+    }
+    if (!$saved) {
+      $why = $fields === false ? "could not encode: " . json_last_error_msg() : "database: " . $wpdb->last_error;
+      error_log("moylgrove-forms: booking not saved ($why)");
+      return moylgrove_rejected_form(["booking could not be saved ($why)"], $current_post, $template, $name, $seats, $submit, $full, $prices);
     }
   }
 
@@ -210,6 +201,30 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
   return do_shortcode(ob_get_clean());
 }
 add_shortcode("moylgrove-form", "moylgrove_form_shortcode");
+
+/// A submission that couldn't be accepted or saved: tell the admin, and show the form again
+/// with what the person entered and a notice. Nothing has been stored or emailed to them.
+function moylgrove_rejected_form($problems, $current_post, $template, $name, $seats, $submit, $full, $prices)
+{
+  moylgrove_notify_rejected($problems, get_the_title($current_post), get_permalink($current_post));
+  $entered = [];
+  foreach ($_POST as $key => $value) {
+    // moylgrove_print_form escapes values when it prints them
+    $entered[$key] = is_scalar($value) ? wp_unslash((string) $value) : '';
+  }
+  $state = [
+    'seatsBooked' => 0,
+    'paid' => 0,
+    'price' => 0,
+    'bookingMode' => MG_BOOK_STATUS,
+    'fields' => $entered,
+  ];
+  $notice = "<p id='moylgrove-errors' style='background-color:orange;padding:4px'>"
+    . "Sorry, we had a problem saving your booking. Please try again or get in touch: <a href='mailto:info@moylgrove.wales'>info@moylgrove.wales</a></p>";
+  ob_start();
+  moylgrove_print_form($template, $state, $name, null, $seats, $submit, $full, $prices, 0, $notice);
+  return do_shortcode(ob_get_clean());
+}
 
 function moylgrove_schedule_pending_email($id, $email_template, $state, $post_title, $post_link, $place, $bcc) {
   $fields = $state['fields'];
