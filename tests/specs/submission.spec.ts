@@ -129,5 +129,30 @@ test.describe('what gets stored', () => {
     expect(text).toContain('S-DONE');
     expect(bookings('noemail')[0].data.email).toBeUndefined();
     expect(mails().filter((m) => String(m.to).includes('victim'))).toHaveLength(0);
+    // With no customer address the organisers get the email instead
+    const toOrganisers = mails().filter((m) => m.to === 'info@moylgrove.wales');
+    expect(toOrganisers).toHaveLength(1);
+    expect(toOrganisers[0].message).toContain('Thanks Sam');
+    expect(toOrganisers[0].message).toContain('no valid customer email');
   });
+});
+
+test('a form with no email template thanks the customer, with the organisers on Bcc', async ({ request }) => {
+  await post(request, 'notemplate', freeForm({ first: 'Summary' }));
+  expect(bookings('notemplate')).toHaveLength(1);
+  const toCustomer = mails().filter((m) => m.to === 'test@example.com');
+  expect(toCustomer).toHaveLength(1);
+  expect(toCustomer[0].message).toContain('Thank you for booking');
+  expect(toCustomer[0].message).toContain('first : Summary');
+  expect(JSON.stringify(toCustomer[0].headers)).toContain('info@moylgrove.wales');
+});
+
+test('the browser refuses an email address without a dotted domain', async ({ page }) => {
+  await page.goto(pageUrl('free'));
+  await page.fill('#adults', '1');
+  await page.fill('#first', 'Em');
+  await page.fill('#email', 'me@host');
+  await page.click('#submit');
+  await expect(page.locator('#email:invalid')).toHaveCount(1);
+  expect(bookings('free')).toHaveLength(0);
 });

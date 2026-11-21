@@ -73,7 +73,7 @@ export function state(): { base: string; pages: Record<string, string>; users: R
   return JSON.parse(fs.readFileSync(STATE, 'utf8'));
 }
 
-export type PageKey = 'paid' | 'free' | 'noemail' | 'table';
+export type PageKey = 'paid' | 'free' | 'noemail' | 'notemplate' | 'table';
 export const pageUrl = (key: PageKey) => state().pages[key];
 export const eventName = (key: PageKey) => `mg-test-${key}`;
 export const bookings = (key: PageKey) => wp('bookings', eventName(key)) as { id: number; raw: string; data: Record<string, any> }[];

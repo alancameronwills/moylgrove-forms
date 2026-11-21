@@ -23,7 +23,7 @@ global $wpdb;
 $table = $wpdb->prefix . 'moylgrove_forms';
 $mailLog = __DIR__ . '/.mail-log.jsonl';
 $muPlugin = WPMU_PLUGIN_DIR . '/mg-test-mail-capture.php';
-$pages = ['paid', 'free', 'noemail', 'table'];
+$pages = ['paid', 'free', 'noemail', 'notemplate', 'table'];
 $users = ['editor' => 'editor', 'subscriber' => 'subscriber'];
 
 function out($data)

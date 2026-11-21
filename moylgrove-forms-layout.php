@@ -68,6 +68,10 @@ echo preg_replace_callback(
           }
           $modifier .= " maxlength='" . ($typecode == 't' ? MG_MAX_TEXT : MG_MAX_EMAIL) . "'";
           $type = $typecode == 't' ? "text" : "email";
+          if ($typecode == 'e') {
+            // Browsers accept "me@host"; the server (is_email) wants a dotted domain, so say so up front
+            $modifier .= " pattern='[^@\\s]+@[^@\\s]+\\.[^@\\s]+' title='Please enter a full email address, like name@example.com'";
+          }
           break;
         case "n":
           if (isset($matches[3])) {
@@ -382,18 +386,30 @@ function moylgrove_send_email(
 ) {
   $fields = $state['fields'];
   // Only send to a proper address (also keeps newlines out of the mail headers)
-  if (!isset($fields['email']) || !is_string($fields['email']) || !is_email($fields['email'])) {
-    return;
-  }
+  $customer = (isset($fields['email']) && is_string($fields['email']) && is_email($fields['email'])) ? $fields['email'] : '';
+  $to = $customer;
   $message = "";
-  if (!isset($template) || strlen($template) == 0) {
-    $message = "Thank you for booking seats at $place_date_time for '$post_title'.\n\n";
+  $summary = !isset($template) || strlen(trim($template)) == 0;
+  if ($summary) {
+    // No email template: a short thank-you with the fields to the customer (organisers on Bcc),
+    // or if there's no valid customer address, the same summary to the organisers alone
+    if ($customer === '') {
+      $to = "info@moylgrove.wales";
+      $message = "Booking at $place_date_time for '$post_title' (no valid customer email).\n\n";
+    } else {
+      $message = "Thank you for booking seats at $place_date_time for '$post_title'.\n\n";
+    }
     foreach ($fields as $k => $v) {
-      $message .= "$k : $v \n";
+      $message .= "$k : " . (is_array($v) ? implode(', ', $v) : $v) . "\n";
     }
     $message .= "\nClick to see or adjust your booking: $post_link\n";
   } else {
-    $fields['paid']       = number_format((float)($fields['paid']       ?? 0), 2);
+    if ($customer === '') {
+      // Nobody to send it to: the organisers get it, to follow up
+      $to = "info@moylgrove.wales";
+      $message = "(The booking has no valid customer email, so this wasn't sent to them.)\n\n";
+    }
+    $fields['paid']     = number_format((float)($fields['paid']       ?? 0), 2);
     $fields['totalPrice'] = number_format((float)($fields['totalPrice'] ?? 0), 2);
     $fields['title'] = preg_replace(
       "/&#.*?;/",
@@ -421,10 +437,10 @@ function moylgrove_send_email(
       $message
     );
   }
-  $headers = [
-    "From: Moylgrove <info@moylgrove.wales>",
-    "Bcc: info@moylgrove.wales",
-  ];
+  $headers = ["From: Moylgrove <info@moylgrove.wales>"];
+  if ($to === $customer) {
+    $headers[] = "Bcc: info@moylgrove.wales";
+  }
   $copies = explode(',', $bcc);
   foreach ($copies as $copy) {
     if (strlen($copy) > 0) {
@@ -434,7 +450,7 @@ function moylgrove_send_email(
   }
   //echo ("==mail:<pre> " . $message . "</pre>==");
   $x = wp_mail(
-    $fields['email'],
+    $to,
     "Booking at Moylgrove",
     $message,
     $headers

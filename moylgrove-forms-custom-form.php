@@ -53,7 +53,7 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
     )
   );
   $template = $contentparts[0];
-  $email_template = $contentparts[1];
+  $email_template = $contentparts[1] ?? '';
   $current_post = get_queried_object();
 
   // Shortcode attributes:
