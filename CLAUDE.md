@@ -32,7 +32,7 @@ There are no build steps. To develop:
 
 Single table `{wp_prefix}moylgrove_forms`:
 ```
-id (MEDIUMINT AUTO_INCREMENT), time (DATETIME), name (TEXT - WP page slug), text (LONGTEXT - JSON fields)
+id (MEDIUMINT AUTO_INCREMENT), time (DATETIME), name (TEXT - WP page slug), text (TEXT, 64KB - JSON fields; saves are refused above 60000 bytes)
 ```
 
 ### Booking States

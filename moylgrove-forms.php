@@ -40,14 +40,14 @@ function moylgrove_forms_install() {
 	require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
 	dbDelta( $sql ); // preserve if already exists
 
-	add_option( 'moylgrove_forms_version', $moylgrove_forms_version );
+	update_option( 'moylgrove_forms_version', $moylgrove_forms_version );
 }
 register_activation_hook( __FILE__, 'moylgrove_forms_install' );
 
 // Update when version changes 
 function myplugin_update_db_check() {
     global $moylgrove_forms_version;
-    if ( get_site_option( '$moylgrove_forms_version' ) != $moylgrove_forms_version ) {
+    if ( get_option( 'moylgrove_forms_version' ) != $moylgrove_forms_version ) {
         moylgrove_forms_install();
     }
 }
