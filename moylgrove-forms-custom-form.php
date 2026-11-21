@@ -80,7 +80,11 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
   global $wpdb;
   $table_name = $wpdb->prefix . 'moylgrove_forms';
 
-  if (!empty($_POST)) {
+  // Only a post from this event's own form is a booking: the page may hold other forms
+  // (comments, search, contact), and anything else posted here is not ours to judge or store.
+  $isBooking = ($_POST['moylgrove_booking'] ?? null) === $name;
+
+  if ($isBooking) {
     // Submitted form; user has created or updated a booking
     //echo "==POST==$name==$id==";
 
@@ -172,7 +176,7 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
 
       moylgrove_print_form($template, $state, $name, $id, $seats, $submit, $full, $prices);
 	  $bookingMode = $state['bookingMode'];
-      if (!empty($_POST) && ($bookingMode == MG_BOOKED_STATUS || $bookingMode == MG_CANCELLED_STATUS)) {
+      if ($isBooking && ($bookingMode == MG_BOOKED_STATUS || $bookingMode == MG_CANCELLED_STATUS)) {
         // Free event (no payment needed) or cancellation: send immediately.
         moylgrove_send_email(
           $email_template,
@@ -182,7 +186,7 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
           "Moylgrove Old School Hall",
           $bcc
         );
-      } elseif (!empty($_POST) && $bookingMode == MG_PAY_STATUS) {
+      } elseif ($isBooking && $bookingMode == MG_PAY_STATUS) {
         // Booking made but payment not yet received: delay email by 10 minutes
         // so we don't send a "please pay" email to someone who pays straight away.
         moylgrove_schedule_pending_email(

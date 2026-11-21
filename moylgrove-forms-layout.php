@@ -22,6 +22,7 @@ function moylgrove_print_form(
   ?><a name="form"></a>
   <?= $notice ?>
       <form action='./#form' method='post' class='moylgrove-form' onsubmit="jQuery('#submit')[0].disabled=true;jQuery('#submit').val('...');">
+      <input type='hidden' name='moylgrove_booking' value='<?= esc_attr($name) ?>'>
 
 <?php
 formHeaderStyles($id, $state, $prices, $name);
@@ -148,6 +149,7 @@ if (!empty($full)) {
 
 const MG_MAX_TEXT = 500; // longest text field we accept
 const MG_MAX_EMAIL = 254;
+const MG_MAX_REJECTION_EMAILS = 10;
 
 /// The rows of the template's {menu}: [["group", "option_id", "Label", "!"], ...]; [] if none.
 function moylgrove_menu_items($template)
@@ -351,6 +353,14 @@ function moylgrove_notify_rejected($problems, $post_title, $post_link)
     return;
   }
   set_transient($transient, 1, 10 * MINUTE_IN_SECONDS);
+
+  // However varied the junk, the inbox gets at most MG_MAX_REJECTION_EMAILS an hour
+  $sent = (int) get_transient('moylgrove_rejected_count');
+  if ($sent >= MG_MAX_REJECTION_EMAILS) {
+    error_log("moylgrove-forms: rejected booking not emailed (limit reached): " . implode(", ", $problems));
+    return;
+  }
+  set_transient('moylgrove_rejected_count', $sent + 1, HOUR_IN_SECONDS);
 
   $message = "Someone tried to book on \"$post_title\" ($post_link) but the form was rejected, so nothing has been saved and they've had no confirmation.\n\n";
   $message .= "Problems: " . implode(", ", $problems) . "\n\n";

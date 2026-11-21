@@ -103,8 +103,11 @@ function merge(base: Record<string, string>, over: Record<string, string | undef
  * `fields` may be an already-encoded body for oddities such as invalid UTF-8 or arrays.
  * `cookieId` sends the `id` cookie the page sets for a returning customer.
  */
-export async function post(request: APIRequestContext, key: PageKey, fields: Record<string, string> | string, cookieId?: number) {
-  const data = typeof fields === 'string' ? fields : new URLSearchParams(fields).toString();
+export async function post(request: APIRequestContext, key: PageKey, fields: Record<string, string> | string, cookieId?: number, marker: boolean | string = true) {
+  // The hidden marker the form itself carries; `marker` false omits it, a string names another event
+  const mark = `moylgrove_booking=${encodeURIComponent(marker === true ? eventName(key) : String(marker))}`;
+  const body = typeof fields === 'string' ? fields : new URLSearchParams(fields).toString();
+  const data = marker === false || body.includes('moylgrove_booking=') ? body : `${body}${body ? '&' : ''}${mark}`;
   const headers: Record<string, string> = { 'content-type': 'application/x-www-form-urlencoded' };
   if (cookieId) headers.cookie = `id=${cookieId}`;
   const res = await request.post(pageUrl(key), { data, headers });
