@@ -1,5 +1,22 @@
 <?php
 
+/// One quoted CSV cell. Quotes and newlines in the value are safe. Numbers are written as ="123",
+/// which Excel shows as text, so a phone number keeps its leading 0. Text that a spreadsheet
+/// would run as a formula (starts with = + - @) is made harmless with a leading apostrophe.
+function moylgrove_csv_cell($value)
+{
+  if (is_array($value)) {
+    $value = implode('; ', array_map('strval', array_filter($value, 'is_scalar')));
+  }
+  $value = (string) $value;
+  if (is_numeric($value)) {
+    $value = "=\"$value\"";
+  } elseif ($value !== '' && strpos("=+-@\t\r", $value[0]) !== false) {
+    $value = "'" . $value;
+  }
+  return '"' . str_replace('"', '""', $value) . '"';
+}
+
 function moylgrove_show_csv($rows, $name, $sum)
 {
   $columnheads = [];
@@ -15,22 +32,24 @@ function moylgrove_show_csv($rows, $name, $sum)
   }
   $heads = array_keys($columnheads);
   //echo "$name\n";
-  $pp = ['"', '","', "\"\n"];
-  echo $pp[0] . implode($pp[1], $heads) . $pp[2];
+  echo implode(',', array_map('moylgrove_csv_cell', $heads)) . "\n";
 
   $sums = [];
   foreach ($items as $item) {
     $cells = [];
     foreach ($heads as $head) {
-      $cell = str_replace(",", ";", $item[$head] ?? "");
+      $cell = $item[$head] ?? "";
+      if (is_array($cell)) {
+        $cell = implode('; ', array_map('strval', array_filter($cell, 'is_scalar')));
+      }
 
       if (strpos(" $sum ", " $head ") !== false) {
         $sums[$head] = ($sums[$head] ?? 0) + (float)($cell);
       }
 
-      $cells[] = is_numeric($cell) ? "=\"\"$cell\"\"" : $cell;
+      $cells[] = moylgrove_csv_cell($cell);
     }
-    echo $pp[0] . implode($pp[1], $cells) . $pp[2];
+    echo implode(',', $cells) . "\n";
   }
 
   $total = 0;
@@ -40,10 +59,7 @@ function moylgrove_show_csv($rows, $name, $sum)
     $cells[] = $v;
     //$total += intval($v);
   }
-  echo $pp[0] . implode($pp[1], $cells) . $pp[2];
-  if ($total > 0) {
-    echo "Total $total";
-  }
+  echo implode(',', array_map('moylgrove_csv_cell', $cells)) . "\n";
 }
 
 /** Sets up the WordPress Environment. */

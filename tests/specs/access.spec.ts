@@ -107,6 +107,21 @@ test.describe('the CSV export', () => {
     expect(text).toContain('Csv');
   });
 
+  test('quotes, newlines, commas and formulas in what people typed stay inert', async ({ page, request }) => {
+    await post(request, 'free', freeForm({ first: 'Plain' }));
+    const [b] = bookings('free');
+    wp('setfield', b.id, 'last', 'He said "hi", then\nleft');
+    wp('setfield', b.id, 'phone', '=HYPERLINK("http://evil.example","x")');
+    wp('setfield', b.id, 'note', '@SUM(1+1)');
+    wp('setfield', b.id, 'zip', '0123');
+    await login(page, 'editor');
+    const text = await (await page.request.get(csv())).text();
+    expect(text).toContain('"He said ""hi"", then\nleft"');
+    expect(text).toContain(`"'=HYPERLINK(""http://evil.example"",""x"")"`);
+    expect(text).toContain(`"'@SUM(1+1)"`);
+    expect(text).toContain('"=""0123"""'); // numbers stay text, keeping leading zeros
+  });
+
   test('needs an event', async ({ page }) => {
     await login(page, 'editor');
     expect((await page.request.get(csv(''))).status()).toBe(400);
