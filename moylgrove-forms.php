@@ -123,6 +123,9 @@ function moylgrove_create_paypal_order(WP_REST_Request $request) {
 	if (!$row) return new WP_Error('not_found', 'Booking not found', ['status' => 404]);
 
 	$data       = json_decode($row->text, true);
+	if (!moylgrove_booking_key_ok($data, moylgrove_clean_key($request->get_param('key')))) {
+		return new WP_Error('not_found', 'Booking not found', ['status' => 404]);
+	}
 	$price      = (float)($data['totalPrice'] ?? 0);
 	$paid       = (float)($data['paid']       ?? 0);
 	$amount_due = round($price - $paid, 2);
@@ -167,6 +170,13 @@ function moylgrove_capture_paypal_order(WP_REST_Request $request) {
 		return new WP_Error('missing_params', 'Missing orderID or id', ['status' => 400]);
 	}
 
+	// Only whoever holds the booking's key may credit a payment to it
+	$table = $wpdb->prefix . 'moylgrove_forms';
+	$row   = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $id));
+	if (!$row || !moylgrove_booking_key_ok(json_decode($row->text, true), moylgrove_clean_key($request->get_param('key')))) {
+		return new WP_Error('not_found', 'Booking not found', ['status' => 404]);
+	}
+
 	$token = moylgrove_get_paypal_token();
 	if (is_wp_error($token)) return $token;
 
@@ -195,8 +205,6 @@ function moylgrove_capture_paypal_order(WP_REST_Request $request) {
 	}
 
 	// Update paid amount in DB
-	$table = $wpdb->prefix . 'moylgrove_forms';
-	$row   = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $id));
 	if ($row) {
 		$data             = json_decode($row->text, true);
 		$previous         = (float)($data['paid'] ?? 0);

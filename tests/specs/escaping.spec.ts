@@ -1,12 +1,15 @@
 import { test, expect, Page, BrowserContext } from '@playwright/test';
-import { wp, post, freeForm, paidForm, bookings, pageUrl, login } from '../lib';
+import { wp, post, freeForm, paidForm, bookings, pageUrl, login, keyOf } from '../lib';
 
 test.beforeEach(() => wp('clear'));
 
 const flag = (page: Page, name: string) => page.evaluate((n) => (window as any)[n], name);
 
 async function visitAs(page: Page, context: BrowserContext, key: 'free' | 'paid', id: number) {
-  await context.addCookies([{ name: 'id', value: String(id), url: pageUrl(key) }]);
+  await context.addCookies([
+    { name: 'id', value: String(id), url: pageUrl(key) },
+    { name: 'key', value: keyOf(id), url: pageUrl(key) },
+  ]);
   await page.goto(pageUrl(key));
 }
 
@@ -52,14 +55,14 @@ test('a hostile ?id= is ignored: no script injected, and no booking shown', asyn
 test('a hostile id cookie is ignored', async ({ request }) => {
   await post(request, 'free', freeForm());
   const [b] = bookings('free');
-  const res = await request.get(pageUrl('free'), { headers: { cookie: `id=${b.id}");window.__rc=1;//` } });
+  const res = await request.get(pageUrl('free'), { headers: { cookie: `id=${b.id}");window.__rc=1;//; key=${keyOf(b.id)}` } });
   expect(await res.text()).not.toContain('window.__rc=1');
 });
 
 test('a genuine ?id= shows that booking', async ({ request, page }) => {
   await post(request, 'free', freeForm({ first: 'Mine' }));
   const [b] = bookings('free');
-  await page.goto(`${pageUrl('free')}?id=${b.id}`);
+  await page.goto(`${pageUrl('free')}?id=${b.id}&key=${keyOf(b.id)}`);
   expect(await flag(page, 'id')).toBe(String(b.id));
   await expect(page.locator('#first')).toHaveValue('Mine');
 });

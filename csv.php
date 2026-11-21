@@ -23,6 +23,7 @@ function moylgrove_show_csv($rows, $name, $sum)
   $items = [];
   foreach ($rows as $row) {
     $item = json_decode($row->text, true);
+    unset($item['key']); // the booking's secret link key isn't for export
     $item['id'] = $row->id;
     $item['timestamp'] = $row->time;
     foreach (array_keys($item) as $k) {

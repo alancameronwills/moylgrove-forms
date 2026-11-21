@@ -151,6 +151,37 @@ const MG_MAX_TEXT = 500; // longest text field we accept
 const MG_MAX_EMAIL = 254;
 const MG_MAX_REJECTION_EMAILS = 10;
 
+/// Each new booking gets a random key, kept in its row. The id alone (sequential, so guessable)
+/// isn't enough to see or change a booking: the link, cookie and PayPal calls carry the key too.
+/// Bookings made before keys existed have none, and stay reachable by id alone.
+function moylgrove_new_booking_key()
+{
+  return bin2hex(random_bytes(8));
+}
+
+/// The key from a URL, cookie or request, if it is shaped like one; else ''
+function moylgrove_clean_key($key)
+{
+  return (is_string($key) && preg_match('/^[0-9a-f]{16}$/', $key)) ? $key : '';
+}
+
+/// May whoever presented $key see and change the booking whose stored fields are $data?
+function moylgrove_booking_key_ok($data, $key)
+{
+  $stored = is_array($data) ? ($data['key'] ?? '') : '';
+  if ($stored === '' || !is_string($stored)) {
+    return true; // made before keys
+  }
+  return is_string($key) && hash_equals($stored, $key);
+}
+
+/// Link back to a booking, as put in emails
+function moylgrove_booking_link($permalink, $id, $fields)
+{
+  $key = moylgrove_clean_key($fields['key'] ?? '');
+  return $permalink . "?id=$id" . ($key !== '' ? "&key=$key" : '');
+}
+
 /// The rows of the template's {menu}: [["group", "option_id", "Label", "!"], ...]; [] if none.
 function moylgrove_menu_items($template)
 {
@@ -185,7 +216,7 @@ function moylgrove_clean_submission($template, $posted)
   );
   foreach ($all as $m) {
     $typecode = isset($m[2]) ? substr($m[2], 0, 1) : "t";
-    if ($typecode == 'c' || $typecode == 's' || in_array($m[1], ['paypal', 'amountDue', 'state', 'menu'], true)) {
+    if ($typecode == 'c' || $typecode == 's' || in_array($m[1], ['paypal', 'amountDue', 'state', 'menu', 'key'], true)) {
       continue; // calculated, button or generated: never taken from the browser
     }
     $allowed[$m[1]] = true;
@@ -971,23 +1002,24 @@ function setMenu() {
 							return fetch(<?= json_encode(rest_url('moylgrove/v1/create-order')) ?>, {
 								method: 'POST',
 								headers: {'Content-Type': 'application/json'},
-								body: JSON.stringify({id: window.id})
+								body: JSON.stringify({id: window.id, key: window.key})
 							}).then(r => r.json()).then(data => data.id);
 						},
 						onApprove: function(data) {
 							document.querySelector('#paypal-button-container').innerHTML = '<p>Processing payment\u2026</p>';
 							var bookingId = window.id;
+							var keyParam = window.key ? '&key=' + window.key : '';
 							return fetch(<?= json_encode(rest_url('moylgrove/v1/capture-order')) ?>, {
 								method: 'POST',
 								headers: {'Content-Type': 'application/json'},
-								body: JSON.stringify({orderID: data.orderID, id: bookingId})
+								body: JSON.stringify({orderID: data.orderID, id: bookingId, key: window.key})
 							}).then(function(r) { return r.json(); }).then(function() {
 								// Use a timestamp so the browser always issues a fresh GET
 								// even if the URL is unchanged (same ?id= param).
-								location.replace(location.pathname + '?id=' + bookingId + '&_t=' + Date.now() + '#form');
+								location.replace(location.pathname + '?id=' + bookingId + keyParam + '&_t=' + Date.now() + '#form');
 							}).catch(function() {
 								document.querySelector('#paypal-button-container').innerHTML =
-									'<p>Payment received. <a href="' + location.pathname + '?id=' + bookingId + '">Reload page to confirm.</a></p>';
+									'<p>Payment received. <a href="' + location.pathname + '?id=' + bookingId + keyParam + '">Reload page to confirm.</a></p>';
 							});
 						}
 					}).render('#paypal-button-container');
@@ -1013,7 +1045,9 @@ function setMenu() {
 		<input type='hidden' id='id' name='id' value='<?= $id ?>' />
 		<script>
 			window.id = "<?= $id ?>";
+			window.key = <?= json_encode(moylgrove_clean_key($state['fields']['key'] ?? '')) ?>;
 			document.cookie= "id=<?= $id ?>; Max-Age=6000000"; // <3 months
+			document.cookie= "key=" + window.key + "; Max-Age=6000000";
 		</script>
 		<?php 
 	} else { ?>

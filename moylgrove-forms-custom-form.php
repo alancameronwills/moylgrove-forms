@@ -63,6 +63,7 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
       [
         'name' => $current_post->post_name ?? "test form", // name of form & template
         'id' => $_GET['id'] ?? ($_COOKIE['id'] ?? null),
+        'key' => $_GET['key'] ?? ($_COOKIE['key'] ?? ''),
         'seats' => "adults kids", // numeric columns - both zero implies cancellation
         'prices' => "", // e.g. "adults 10 kids 0"
         'submit' => "Book and pay", // button label
@@ -79,6 +80,20 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
   $id = (is_scalar($id) && ctype_digit((string) $id) && (int) $id > 0) ? (int) $id : null;
   global $wpdb;
   $table_name = $wpdb->prefix . 'moylgrove_forms';
+
+  // Whoever has the id also needs the booking's key (or be allowed to manage bookings);
+  // otherwise this is treated as no booking at all.
+  $existing = null;
+  if (isset($id)) {
+    $existing = $wpdb->get_row($wpdb->prepare("SELECT text FROM $table_name WHERE id = %d AND name = %s", $id, $name));
+    if ($existing && !moylgrove_can_manage_bookings()
+      && !moylgrove_booking_key_ok(json_decode($existing->text, true), moylgrove_clean_key($key))) {
+      $existing = null;
+    }
+    if (!$existing) {
+      $id = null;
+    }
+  }
 
   // Only a post from this event's own form is a booking: the page may hold other forms
   // (comments, search, contact), and anything else posted here is not ours to judge or store.
@@ -98,12 +113,6 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
 	// Store all the <input> fields:
     // Only update a booking that exists for this event; an id that doesn't match one
     // starts a new booking instead of overwriting someone else's row.
-    $existing = isset($id)
-      ? $wpdb->get_row($wpdb->prepare("SELECT text FROM $table_name WHERE id = %d AND name = %s", $id, $name))
-      : null;
-    if (!$existing) {
-      $id = null;
-    }
 
     // The price and the amount paid are ours to decide, never the browser's: whatever the
     // form posted for them is discarded. The price is recomputed from the counts, and the
@@ -114,6 +123,13 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
     $previousPaid = $previous['paid'] ?? 0;
     $data['totalPrice'] = number_format($total, 2, '.', '');
     $data['calculation'] = $calculation;
+    if ($previous) {
+      if (!empty($previous['key'])) {
+        $data['key'] = $previous['key'];
+      }
+    } else {
+      $data['key'] = moylgrove_new_booking_key();
+    }
     $data['paid'] = number_format(is_numeric($previousPaid) ? (float) $previousPaid : 0, 2, '.', '');
 
     // Never report a booking as made unless it really was saved. The column is 64KB TEXT,
@@ -182,7 +198,7 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
           $email_template,
           $state,
           get_the_title($current_post),
-          get_permalink($current_post) . "?id=$id",
+          moylgrove_booking_link(get_permalink($current_post), $id, $state['fields']),
           "Moylgrove Old School Hall",
           $bcc
         );
@@ -194,7 +210,7 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
           $email_template,
           $state,
           get_the_title($current_post),
-          get_permalink($current_post) . "?id=$id",
+          moylgrove_booking_link(get_permalink($current_post), $id, $state['fields']),
           "Moylgrove Old School Hall",
           $bcc
         );

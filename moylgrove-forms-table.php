@@ -124,6 +124,9 @@ function moylgrove_forms_table_shortcode($attributes = [], $content = null)
       $item['id'] = $row->id;
       $item['timestamp'] = $row->time;
       foreach (array_keys($item) as $k) {
+        if ($k === 'key') {
+          continue; // the booking's secret link key isn't for display
+        }
         // Logged in user can see everything; others only see summed columns
         if ($fullTable || strpos(" $public ", " $k ") !== false) {
           if (strpos($k, "#") > 1) {

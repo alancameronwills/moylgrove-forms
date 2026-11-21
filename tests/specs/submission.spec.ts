@@ -113,7 +113,7 @@ test.describe('what gets stored', () => {
     await post(request, 'paid', body);
     const keys = Object.keys(bookings('paid')[0].data).sort();
     expect(keys).toEqual(
-      ['adults', 'calculation', 'email', 'first', 'kids', 'last', 'main#1', 'main#2', 'main#3', 'paid', 'phone', 'totalPrice'].sort(),
+      ['adults', 'calculation', 'email', 'first', 'key', 'kids', 'last', 'main#1', 'main#2', 'main#3', 'paid', 'phone', 'totalPrice'].sort(),
     );
   });
 

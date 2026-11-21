@@ -21,6 +21,12 @@ function sql(query: string): string {
 
 const table = () => `${PREFIX}moylgrove_forms`;
 
+/** The secret key of a booking ('' if it has none, or there is no such booking). */
+export function keyOf(id: number): string {
+  const row = sql(`SELECT text FROM ${table()} WHERE id = ${Number(id)}`).trim();
+  try { return JSON.parse(row).key || ''; } catch { return ''; }
+}
+
 function updateText(id: number, change: (data: Record<string, any>) => void) {
   const row = sql(`SELECT text FROM ${table()} WHERE id = ${Number(id)}`).replace(/\r?\n$/, '');
   const data = JSON.parse(row);
@@ -53,6 +59,9 @@ export function wp(cmd: string, ...args: (string | number)[]): any {
         });
     case 'setpaid':
       updateText(Number(args[0]), (d) => { d.paid = Number(args[1]).toFixed(2); });
+      return true;
+    case 'delfield':
+      updateText(Number(args[0]), (d) => { delete d[String(args[1])]; });
       return true;
     case 'setfield':
       updateText(Number(args[0]), (d) => { d[String(args[1])] = String(args[2]); });
@@ -101,7 +110,7 @@ function merge(base: Record<string, string>, over: Record<string, string | undef
 /**
  * POST a form straight to a page, as a browser without working JavaScript would.
  * `fields` may be an already-encoded body for oddities such as invalid UTF-8 or arrays.
- * `cookieId` sends the `id` cookie the page sets for a returning customer.
+ * `cookieId` sends the `id` and `key` cookies the page sets for a returning customer.
  */
 export async function post(request: APIRequestContext, key: PageKey, fields: Record<string, string> | string, cookieId?: number, marker: boolean | string = true) {
   // The hidden marker the form itself carries; `marker` false omits it, a string names another event
@@ -109,7 +118,7 @@ export async function post(request: APIRequestContext, key: PageKey, fields: Rec
   const body = typeof fields === 'string' ? fields : new URLSearchParams(fields).toString();
   const data = marker === false || body.includes('moylgrove_booking=') ? body : `${body}${body ? '&' : ''}${mark}`;
   const headers: Record<string, string> = { 'content-type': 'application/x-www-form-urlencoded' };
-  if (cookieId) headers.cookie = `id=${cookieId}`;
+  if (cookieId) headers.cookie = `id=${cookieId}; key=${keyOf(cookieId)}`;
   const res = await request.post(pageUrl(key), { data, headers });
   const text = await res.text();
   return { res, text };
