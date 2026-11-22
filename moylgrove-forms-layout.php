@@ -1013,13 +1013,17 @@ function setMenu() {
 								method: 'POST',
 								headers: {'Content-Type': 'application/json'},
 								body: JSON.stringify({orderID: data.orderID, id: bookingId, key: window.key})
-							}).then(function(r) { return r.json(); }).then(function() {
+							}).then(function(r) { return r.json(); }).then(function(result) {
+									if (!result || !result.success) {
+										throw new Error('not credited');
+									}
 								// Use a timestamp so the browser always issues a fresh GET
 								// even if the URL is unchanged (same ?id= param).
 								location.replace(location.pathname + '?id=' + bookingId + keyParam + '&_t=' + Date.now() + '#form');
 							}).catch(function() {
 								document.querySelector('#paypal-button-container').innerHTML =
-									'<p>Payment received. <a href="' + location.pathname + '?id=' + bookingId + keyParam + '">Reload page to confirm.</a></p>';
+									'<p>We could not confirm your payment on this page. If PayPal has taken the money, please do not pay again: ' +
+										'<a href="' + location.pathname + '?id=' + bookingId + keyParam + '">reload this page</a>, or email info@moylgrove.wales quoting booking ' + bookingId + '.</p>';
 							});
 						}
 					}).render('#paypal-button-container');

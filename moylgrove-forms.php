@@ -3,7 +3,7 @@
 /**
  * Plugin Name: Moylgrove Forms
  * Description: Take details of event bookings
- * Version: 1.2.0
+ * Version: 1.2.1
  * Author: Alan Cameron Wills
  * Licence: GPLv2
  */
@@ -13,7 +13,7 @@
 // https://developer.wordpress.org/reference/classes/wpdb/
 
 global $moylgrove_forms_version;
-$moylgrove_forms_version = '1.2.0';
+$moylgrove_forms_version = '1.2.1';
 
 
 	const MG_BOOK_STATUS = 1;
@@ -214,6 +214,7 @@ function moylgrove_capture_paypal_order(WP_REST_Request $request) {
 	]);
 	if (is_wp_error($order_response)) return $order_response;
 	if (!moylgrove_order_is_for_booking(json_decode(wp_remote_retrieve_body($order_response), true), $id)) {
+		error_log("moylgrove-forms: PayPal order $order_id is not for booking $id: " . substr(wp_remote_retrieve_body($order_response), 0, 1500));
 		return new WP_Error('wrong_order', 'That payment is not for this booking', ['status' => 400]);
 	}
 
@@ -229,13 +230,14 @@ function moylgrove_capture_paypal_order(WP_REST_Request $request) {
 	$body = json_decode(wp_remote_retrieve_body($response), true);
 
 	if (($body['status'] ?? '') !== 'COMPLETED') {
+		error_log("moylgrove-forms: PayPal capture of order $order_id for booking $id failed: " . substr(wp_remote_retrieve_body($response), 0, 1500));
 		return new WP_Error('capture_failed', 'Payment capture failed', ['status' => 500]);
 	}
 
 	// Sum captured amounts
 	$amount = moylgrove_captured_amount($body, $id);
 	if ($amount <= 0) {
-		error_log("moylgrove-forms: PayPal order $order_id for booking $id captured nothing creditable");
+		error_log("moylgrove-forms: PayPal order $order_id for booking $id captured nothing creditable: " . substr(wp_remote_retrieve_body($response), 0, 1500));
 		return new WP_Error('capture_failed', 'Payment capture failed', ['status' => 500]);
 	}
 
