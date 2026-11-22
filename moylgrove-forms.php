@@ -3,7 +3,7 @@
 /**
  * Plugin Name: Moylgrove Forms
  * Description: Take details of event bookings
- * Version: 1.1.4
+ * Version: 1.2.0
  * Author: Alan Cameron Wills
  * Licence: GPLv2
  */
@@ -13,7 +13,7 @@
 // https://developer.wordpress.org/reference/classes/wpdb/
 
 global $moylgrove_forms_version;
-$moylgrove_forms_version = '1.1.4';
+$moylgrove_forms_version = '1.2.0';
 
 
 	const MG_BOOK_STATUS = 1;
