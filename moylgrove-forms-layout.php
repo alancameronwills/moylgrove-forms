@@ -1006,7 +1006,7 @@ function setMenu() {
 							}).then(r => r.json()).then(data => data.id);
 						},
 						onApprove: function(data) {
-							document.querySelector('#paypal-button-container').innerHTML = '<p>Processing payment\u2026</p>';
+							document.querySelector('#paypal-button-container').innerHTML = '<p style="font-size:1rem">Processing payment\u2026</p>';
 							var bookingId = window.id;
 							var keyParam = window.key ? '&key=' + window.key : '';
 							return fetch(<?= json_encode(rest_url('moylgrove/v1/capture-order')) ?>, {
@@ -1022,7 +1022,7 @@ function setMenu() {
 								location.replace(location.pathname + '?id=' + bookingId + keyParam + '&_t=' + Date.now() + '#form');
 							}).catch(function() {
 								document.querySelector('#paypal-button-container').innerHTML =
-									'<p>We could not confirm your payment on this page. If PayPal has taken the money, please do not pay again: ' +
+									'<p style="font-size:1rem">We could not confirm your payment on this page. If PayPal has taken the money, please do not pay again: ' +
 										'<a href="' + location.pathname + '?id=' + bookingId + keyParam + '">reload this page</a>, or email info@moylgrove.wales quoting booking ' + bookingId + '.</p>';
 							});
 						}
