@@ -933,7 +933,7 @@ function setMenu() {
 		// 
 		let menuSummary = "";
 		for (let i= 1; i<=window.seatCount; i++) {
-			menuSummary += `Seat ${i}: ${(seatSelections[i] || []).join(", ")}; <br />\n`;
+			menuSummary += `Seat ${i}: ${(seatSelections[i] || []).join(", ")};\n`;
 		}
 		let ms = document.querySelector("#menuSummary");
 		if (ms) ms.value = menuSummary;
