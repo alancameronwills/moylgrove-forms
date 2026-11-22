@@ -3,7 +3,7 @@
 /**
  * Plugin Name: Moylgrove Forms
  * Description: Take details of event bookings
- * Version: 1.2.1
+ * Version: 1.2.2
  * Author: Alan Cameron Wills
  * Licence: GPLv2
  */
@@ -13,7 +13,7 @@
 // https://developer.wordpress.org/reference/classes/wpdb/
 
 global $moylgrove_forms_version;
-$moylgrove_forms_version = '1.2.1';
+$moylgrove_forms_version = '1.2.2';
 
 
 	const MG_BOOK_STATUS = 1;
@@ -174,12 +174,16 @@ function moylgrove_order_is_for_booking($order, $id) {
 }
 
 /// Pounds actually captured for booking $id in a captured order: only completed captures,
-/// in GBP, in units stamped with this booking.
+/// in GBP, stamped with this booking. PayPal's capture reply carries the custom_id on each
+/// capture rather than on the purchase unit (the order as fetched has it on the unit), so
+/// either place counts.
 function moylgrove_captured_amount($order, $id) {
 	$amount = 0;
 	foreach ((is_array($order) ? ($order['purchase_units'] ?? []) : []) as $unit) {
-		if (!is_array($unit) || (string)($unit['custom_id'] ?? '') !== (string)$id) continue;
+		if (!is_array($unit)) continue;
 		foreach (($unit['payments']['captures'] ?? []) as $capture) {
+			$stamp = $capture['custom_id'] ?? ($unit['custom_id'] ?? '');
+			if ((string)$stamp !== (string)$id) continue;
 			if (($capture['status'] ?? '') === 'COMPLETED' && ($capture['amount']['currency_code'] ?? '') === 'GBP') {
 				$amount += (float)($capture['amount']['value'] ?? 0);
 			}

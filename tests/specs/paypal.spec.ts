@@ -9,6 +9,11 @@ const capture = (value: string, over: object = {}) => ({ status: 'COMPLETED', am
 const unit = (custom_id: string, captures: object[] = []) => ({ custom_id, payments: { captures } });
 
 test.describe('PayPal orders', () => {
+  test('a capture reply stamps the id on the capture, not the unit, and still counts', () => {
+    const order = { purchase_units: [{ payments: { captures: [capture('10.00', { custom_id: '957' }), capture('5.00', { custom_id: '958' })] } }] };
+    expect(check(order, 957).amount).toBe(10);
+  });
+
   test("an order stamped with this booking's id belongs to it", () => {
     expect(check({ purchase_units: [unit('42')] }, 42).for).toBe(true);
   });
