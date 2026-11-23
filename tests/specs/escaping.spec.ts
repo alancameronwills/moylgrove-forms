@@ -67,6 +67,17 @@ test('a genuine ?id= shows that booking', async ({ request, page }) => {
   await expect(page.locator('#first')).toHaveValue('Mine');
 });
 
+test('the menu summary shows without its <br /> markers in the table and both dumps', async ({ request, page }) => {
+  await post(request, 'paid', paidForm({ first: 'Menu', menuSummary: 'Seat 1: aaa; <br />Seat 2: bbb; <br />' }));
+  expect(bookings('paid')[0].raw).toContain('<br \\/>'); // as PHP stores it
+  await login(page, 'editor');
+  const html = await (await page.request.get(pageUrl('table'))).text();
+  expect(html).toContain('aaa;');
+  expect(html).not.toMatch(/aaa;\s*(<br|&lt;br)/);
+  expect(html).not.toMatch(/bbb;\s*(<br|&lt;br)/);
+  expect(html).not.toContain('<br \\/>');
+});
+
 test('the bookings table shows what people typed as text', async ({ request, page }) => {
   const first = '<img src=x onerror=window.__tx=1>';
   await post(request, 'free', freeForm({ first }));

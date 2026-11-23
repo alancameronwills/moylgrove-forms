@@ -113,7 +113,9 @@ function moylgrove_forms_table_shortcode($attributes = [], $content = null)
   if ($style == "dump") {
     foreach ($rows as $row) $row->text = preg_replace('#<br \\\\?/>#', ' ', $row->text); // as stored it's <br \/> // line breaks are for emails
     echo "<pre> $name";
+    ob_start();
     var_dump($rows);
+    echo esc_html(ob_get_clean()); // what people typed must not run as HTML
     echo "</pre>";
   } else {
     $html = $style == "html";
@@ -182,7 +184,8 @@ function moylgrove_forms_table_shortcode($attributes = [], $content = null)
           $rowid = absint($cell);
           $cells[] = "<a href='./?id=$rowid' target='_blank'>$rowid</a>";
         } else {
-          $cells[] = esc_html($cell);
+          // the menu summary's line breaks are for emails
+          $cells[] = esc_html(is_string($cell) ? preg_replace('#<br ?/?>#', ' ', $cell) : $cell);
         }
         if ($head == 'totalPrice') {
           $totalPrice = floatval($cell);

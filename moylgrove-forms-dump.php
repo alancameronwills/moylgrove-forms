@@ -20,7 +20,9 @@ function moylgrove_forms_dump_shortcode($attributes = [], $content = null)
 	$rows = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table_name WHERE name = %s", $name));
 	foreach ($rows as $row) $row->text = preg_replace('#<br \\\\?/>#', ' ', $row->text); // as stored it's <br \/> // line breaks are for emails
 	echo ("<pre> $name");
+	ob_start();
 	var_dump($rows);
+	echo esc_html(ob_get_clean()); // what people typed must not run as HTML
 	echo ("</pre>");
 	
   	return ob_get_clean();

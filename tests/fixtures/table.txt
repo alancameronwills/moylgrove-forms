@@ -1,1 +1,7 @@
 [moylgrove-forms-table name="mg-test-free" sum="adults kids"]
+
+[moylgrove-forms-dump name="mg-test-paid"]
+
+[moylgrove-forms-table name="mg-test-paid" style="dump"]
+
+[moylgrove-forms-table name="mg-test-paid" style="text"]
