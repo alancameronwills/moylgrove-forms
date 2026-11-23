@@ -22,6 +22,8 @@ Provides a form for event bookings, with link to PayPal.
 - Only people who can edit posts can delete or refund bookings, or download the CSV.
 - If the form has no email template, the customer gets a short thank-you listing their details. If there is no valid customer email, the organisers get the email instead.
 
+- Payments are checked with PayPal before they are credited: the order must carry this booking's id. If a payment can't be confirmed, the customer is told not to pay again, and PayPal's reply is written to the PHP error log (look for `moylgrove-forms: PayPal`) so the organisers can set the booking's `paid` amount by hand.
+
 ## Tests
 
 Browser tests live in `tests/`; see `tests/README.md`.

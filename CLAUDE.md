@@ -86,10 +86,12 @@ Everything posted is untrusted; the browser's checks are conveniences only.
 - **Which posts are bookings**: only a POST carrying the hidden field `moylgrove_booking` equal to this event's name (printed by `moylgrove_print_form`). Other posts to the page (comments, search) are ignored. Rejection emails to the organisers are de-duplicated per payload and capped at `MG_MAX_REJECTION_EMAILS` (10) an hour.
 - **What is stored**: `moylgrove_clean_submission()` keeps only fields the template declares (not `c`/`s` fields, `paypal`, `amountDue`, `state`, `menu`, `key`) plus valid menu keys (`#option`, `group#1..8`, `menuSummary`). Text is capped (`MG_MAX_TEXT` 500, `MG_MAX_EMAIL` 254). Numbers must be whole and, unless a lower limit says otherwise, not negative.
 - **Money**: `totalPrice` and `calculation` are always recomputed from `prices` and the counts (`moylgrove_compute_price`). `paid` is never taken from the browser: it is the stored value, changed only by PayPal capture or the refund button.
+- **PayPal orders**: `create-order` stamps the booking id into the order as `custom_id`. `capture-order` first fetches the order and refuses it unless every purchase unit carries this booking's id (`moylgrove_order_is_for_booking`), then captures and credits only COMPLETED GBP captures stamped with the id (`moylgrove_captured_amount`). Note PayPal's *capture reply* puts `custom_id` on each capture, not on the purchase unit (the fetched order has it on the unit), so both places count. Any failure writes PayPal's reply to the PHP error log (lines starting `moylgrove-forms: PayPal`) and the page tells the customer the payment could not be confirmed and not to pay again; the organiser then fixes `paid` in the row by hand.
 - **Saving**: a save that fails (DB error, over 60000 bytes) is logged, emailed to the organisers and the form shown again; never reported as a booking.
 - **Output**: every value printed into HTML, attributes or JavaScript is escaped (`esc_attr`/`esc_html`, `JSON_HEX_*` for JSON in comments and scripts). The `id` is accepted only as a positive whole number.
 - **Permissions**: delete, refund and the CSV need `edit_posts` (`moylgrove_can_manage_bookings()`); delete and refund also need nonces. Delete only works on a cancelled booking of the same event.
 - **Emails**: with an email template, it goes to the customer's `email` field if that is valid (organisers on Bcc). With no valid customer address the organisers get it instead. With no template, a short thank-you listing the fields goes the same way.
+- **Menu summary**: the browser builds `menuSummary` ("Seat 1: …; <br />Seat 2: …") in a one-line input, so the `<br />` is what puts each seat on its own line in emails (the email code turns it into a newline). Stored by PHP it reads `<br \/>`. The CSV, the dumps and the table cells replace it with a space.
 - **CSV**: every cell is quoted; text starting `= + - @` gets a leading apostrophe; numbers are written `="0123"`; the booking key is omitted.
 
 ### Booking Keys
@@ -98,7 +100,7 @@ Ids are sequential, so each new booking also gets a random 16-hex `key` (in the 
 
 ### Tests
 
-`tests/` holds Playwright tests that run against the local UniServer WordPress (Apache and MySQL running): `cd tests && npx playwright test` (about 13 minutes). See `tests/README.md`. They create `mg-test-*` pages and users and capture outgoing mail instead of sending it, and remove them afterwards. Don't run two runs at once: they share the same tables. When you change validation, the whitelist, access rules, emails or the form markup, run the suite and add a test for the new behaviour. `tests/lib.ts` `post()` adds the `moylgrove_booking` marker the way the real form does.
+`tests/` holds Playwright tests that run against the local UniServer WordPress (Apache and MySQL running): `cd tests && npx playwright test` (about 16 minutes). See `tests/README.md`. They create `mg-test-*` pages and users and capture outgoing mail instead of sending it, and remove them afterwards. Don't run two runs at once: they share the same tables. When you change validation, the whitelist, access rules, emails or the form markup, run the suite and add a test for the new behaviour. `tests/lib.ts` `post()` adds the `moylgrove_booking` marker the way the real form does.
 
 ### Key Conventions
 

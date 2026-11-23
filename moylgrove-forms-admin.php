@@ -59,6 +59,11 @@ In the standard form, just after the section label "Price", the colon has a link
 <p>This will disallow new bookings, while allowing existing customers to review their existing booking.</p>
 <p>(To do this automatically, you can set the full message and set max=60 or however many you want to sell.)</p>
 
+<h3>If a payment doesn't show</h3>
+<p>If a customer pays at PayPal but the page says <i>"We could not confirm your payment"</i>, PayPal has the money but the booking doesn't yet show it as paid.
+	Check the payment in PayPal, then record it against the booking (ask your web administrator to set the booking's <code>paid</code> amount).
+	The reason is written to the website's PHP error log, on a line starting <code>moylgrove-forms: PayPal</code>.</p>
+
 <h3>Refunds</h3>
 <p>If, after they have paid for some tickets, a customer changes the booking to reduce the number of seats they want, then we'll owe them a refund. 
 	The system doesn't do this automatically. You'll have to login to our PayPal account and refund their payment. (Or you can give them the cash - but this
@@ -223,7 +228,7 @@ and underneath that a <b>Custom bookings table</b>.</p>
 <p>An anonymized version of the table can be seen by other users by appending "?counters=1" to the URL of the bookings page. This includes only the columns that show the numbers of seats booked.</p>
 <p>Parameters:</p>
 <ul>
-	<li><code>style</code> = <code>html</code> or <code>csv</code>. Default html.</li>
+	<li><code>style</code> = <code>html</code>, <code>text</code> or <code>dump</code> (the raw stored data, for diagnosis - use only on a page that is not public). Default html.</li>
 	<li><code>sum</code> = list of numeric fields to be summed in the displayed table. Default 'adults kids'.</li>
 	<li><code>public</code> = Even users that are not logged in will see these fields by appending ?counters=1 to the URL.</li>
 
