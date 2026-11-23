@@ -122,6 +122,15 @@ test.describe('the CSV export', () => {
     expect(text).toContain('"=""0123"""'); // numbers stay text, keeping leading zeros
   });
 
+  test('shows the menu summary on one line, without its <br /> markers', async ({ page, request }) => {
+    await post(request, 'free', freeForm({ first: 'Menu' }));
+    wp('setfield', bookings('free')[0].id, 'menuSummary', 'Seat 1: turkey; <br />Seat 2: veggie; <br />'); // the browser drops the \n from the input
+    await login(page, 'editor');
+    const text = await (await page.request.get(csv())).text();
+    expect(text).toContain('Seat 1: turkey;  Seat 2: veggie;  ');
+    expect(text).not.toContain('<br');
+  });
+
   test('needs an event', async ({ page }) => {
     await login(page, 'editor');
     expect((await page.request.get(csv(''))).status()).toBe(400);

@@ -111,6 +111,7 @@ function moylgrove_forms_table_shortcode($attributes = [], $content = null)
     $wpdb->prepare("SELECT * FROM $table_name WHERE name = %s", $name)
   );
   if ($style == "dump") {
+    foreach ($rows as $row) $row->text = str_replace('<br />', ' ', $row->text); // line breaks are for emails
     echo "<pre> $name";
     var_dump($rows);
     echo "</pre>";

@@ -8,7 +8,7 @@ function moylgrove_csv_cell($value)
   if (is_array($value)) {
     $value = implode('; ', array_map('strval', array_filter($value, 'is_scalar')));
   }
-  $value = (string) $value;
+  $value = str_replace('<br />', ' ', (string) $value); // the menu summary's line breaks are for emails
   if (is_numeric($value)) {
     $value = "=\"$value\"";
   } elseif ($value !== '' && strpos("=+-@\t\r", $value[0]) !== false) {
