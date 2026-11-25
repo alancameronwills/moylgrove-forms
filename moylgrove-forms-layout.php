@@ -512,7 +512,7 @@ function rewrite_longs($template, $state, $fields)
 
   // State - Book a seat || You've booked || You've cancelled || Pay up
   $template2 = preg_replace_callback(
-    '#\{state\}(.*?)(?:\|\|(.*?)(?:\|\|(.*?)(?:\|\|(.*?))?)?)?\{/state\}#',
+    '#\{state\}(.*?)(?:\|\|(.*?)(?:\|\|(.*?)(?:\|\|(.*?))?)?)?\{/state\}#s',
     function ($matches) use($bookingMode, $status_message) {
       if (
         $bookingMode >= 1 &&
@@ -548,21 +548,18 @@ function rewrite_longs($template, $state, $fields)
 
   // gt comparison - allows field names or literal numbers
   $template2 = preg_replace_callback(
-    '#\{ *([^ {}]+) +gt +([^ ]+) *\}(.*?){/gt\}#',
+    // /s: the text between the tags may span several lines. Operands can't contain braces
+    // or whitespace, so the opening tag can't run on into the text after it.
+    '#\{ *([^\s{}]+) +gt +([^\s{}]+) *\}(.*?)\{/gt\}#s',
     function ($matches)use($fields) {
+      // A number, or the numeric value of a field (tolerating "1,234.50" as formatted for email)
       $term = function ($i) use ($matches, $fields) {
-        return is_numeric($matches[$i]) ? $matches[$i] 
-            : ($fields != null ? (isset($fields[$matches[$i]]) ? $fields[$matches[$i]] : 0) :  0);
+        $v = is_numeric($matches[$i]) ? $matches[$i]
+            : (is_array($fields) && isset($fields[$matches[$i]]) ? $fields[$matches[$i]] : 0);
+        $v = str_replace(',', '', (string) $v);
+        return is_numeric($v) ? (float) $v : 0.0;
       };
-      if (count($matches) == 4) {
-        $a = $term(1);
-        $b = $term(2);
-        if ($a > $b) {
-          return $matches[3];
-        } else {
-          return "";
-        }
-      }
+      return $term(1) > $term(2) ? $matches[3] : "";
     },
     $template2
   );

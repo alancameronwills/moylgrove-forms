@@ -67,7 +67,7 @@ The `[moylgrove-form]` shortcode body uses a custom template language:
 ### URL Parameters
 
 - `?id=123&key=<16 hex>` — load a specific booking for editing (the key is required; see Booking Keys)
-- `?paid=timestamp` — return from PayPal (prevents duplicate confirmation emails)
+- `&_t=timestamp` — added by the JS when it reloads the page after a PayPal capture, to defeat caching. It carries no meaning for the server; the confirmation email is driven by the `confirm_due` flag in the row, not by the URL.
 - `?counters=1` — show anonymized seat counts without login
 - `?delete=id` — delete a cancelled booking
 
@@ -94,6 +94,13 @@ Everything posted is untrusted; the browser's checks are conveniences only.
 - **Menu summary**: the browser builds `menuSummary` ("Seat 1: …; <br />Seat 2: …") in a one-line input, so the `<br />` is what puts each seat on its own line in emails (the email code turns it into a newline). Stored by PHP it reads `<br \/>`. The CSV, the dumps and the table cells replace it with a space.
 - **CSV**: every cell is quoted; text starting `= + - @` gets a leading apostrophe; numbers are written `="0123"`; the booking key is omitted.
 
+### Email timing and payment confirmation
+
+- **Free booking or cancellation**: the email is sent immediately when the form is posted.
+- **Booking that needs payment**: the "awaiting payment" email is delayed. `moylgrove_schedule_pending_email` stores what's needed in a 20-minute transient (`moylgrove_pending_email_<id>`) and schedules a WP-Cron event (`moylgrove_delayed_email`, 5 minutes later). `moylgrove_send_delayed_email` sends it unless the booking has been paid by then, and deletes the transient. **The transient exists only for this delayed message — the payment confirmation must never depend on it** (a person may pay minutes, days or weeks later, after the transient is gone).
+- **Payment confirmation**: `capture-order` credits `paid`, cancels the scheduled delayed email and sets `confirm_due = '1'` in the row's JSON; it sends no email itself because the email template lives in the page's shortcode, not the row (and `[moylgrove-standard-form]` generates that shortcode in PHP, so it can't be re-parsed from the post). The JS then reloads the page (`location.replace(…?id=…&key=…&_t=…)`), and `moylgrove_form_shortcode`, which has the template, sees `confirm_due`, clears it in the row first (so refreshes and second tabs can't resend), then sends the confirmation to the row's `email`. If the browser closes between PayPal and the reload, the flag stays and the email goes out on the next view of that booking.
+- Scenario that must keep working: book and click "Book and pay", close the window, come back days later via the cookie, pay, and receive the confirmation.
+
 ### Booking Keys
 
 Ids are sequential, so each new booking also gets a random 16-hex `key` (in the row's JSON). Viewing or editing a booking needs `id` and `key` (URL, or the `id`/`key` cookies the page sets); without a matching key the page behaves as if there were no booking and a post starts a new one. The key is carried in emailed links (`moylgrove_booking_link`), the page's JS, and the PayPal REST calls (`create-order`, `capture-order` return 404 without it). Users who can manage bookings may open any booking by id. Bookings made before keys existed have none and open by id alone. The key is hidden in the table and CSV. Helpers: `moylgrove_new_booking_key`, `moylgrove_clean_key`, `moylgrove_booking_key_ok` in `moylgrove-forms-layout.php`. `[moylgrove-forms-dump]` and the table's `style="dump"` print raw rows (keys included) without a login check: use them only on private pages. The output is HTML-escaped, and the menu summary's `<br />` markers (which are for emails) are replaced by spaces.
@@ -101,6 +108,16 @@ Ids are sequential, so each new booking also gets a random 16-hex `key` (in the 
 ### Tests
 
 `tests/` holds Playwright tests that run against the local UniServer WordPress (Apache and MySQL running): `cd tests && npx playwright test` (about 16 minutes). See `tests/README.md`. They create `mg-test-*` pages and users and capture outgoing mail instead of sending it, and remove them afterwards. Don't run two runs at once: they share the same tables. When you change validation, the whitelist, access rules, emails or the form markup, run the suite and add a test for the new behaviour. `tests/lib.ts` `post()` adds the `moylgrove_booking` marker the way the real form does.
+
+### Releases (manual)
+
+There is no release script, and the GitHub releases (latest `v1.5`) are **not** used or kept in step: ignore them. A release is:
+1. Bump the version in both places in `moylgrove-forms.php`: the `Version:` header and `$moylgrove_forms_version` (a change to the latter triggers the plugin's update routine on the next load). Numbering continues from the header (e.g. 1.2.8 → 1.2.9), not from the GitHub tag.
+2. Commit with a message ending `; version x.y.z` (the history's convention). Pushing is separate; do it only when asked.
+3. Build the zip from the commit and **overwrite** `C:\Users\alan\Downloads\moylgrove-forms.zip` (the previous release sits there):
+   `git archive --format=zip --prefix=moylgrove-forms/ -o /c/Users/alan/Downloads/moylgrove-forms.zip HEAD -- . ':!CLAUDE.md' ':!tests'`
+   The zip has a top-level `moylgrove-forms/` folder and leaves out `CLAUDE.md` and `tests/`. Check with `unzip -l`.
+4. The user installs the zip by hand; no tag or GitHub release is created.
 
 ### Key Conventions
 
