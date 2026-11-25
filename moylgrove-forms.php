@@ -3,7 +3,7 @@
 /**
  * Plugin Name: Moylgrove Forms
  * Description: Take details of event bookings
- * Version: 1.2.8
+ * Version: 1.2.9
  * Author: Alan Cameron Wills
  * Licence: GPLv2
  */
@@ -13,7 +13,7 @@
 // https://developer.wordpress.org/reference/classes/wpdb/
 
 global $moylgrove_forms_version;
-$moylgrove_forms_version = '1.2.8';
+$moylgrove_forms_version = '1.2.9';
 
 
 	const MG_BOOK_STATUS = 1;
@@ -250,6 +250,9 @@ function moylgrove_capture_paypal_order(WP_REST_Request $request) {
 		$data             = json_decode($row->text, true);
 		$previous         = (float)($data['paid'] ?? 0);
 		$data['paid']     = number_format(round($amount + $previous, 2), 2);
+		// The page reloads straight after this call; the form shortcode there has the email
+		// template, so it sends the confirmation when it sees this flag (and clears it).
+		$data['confirm_due'] = '1';
 		$wpdb->replace($table, [
 			'id'   => $id,
 			'time' => current_time('mysql'),
@@ -259,27 +262,8 @@ function moylgrove_capture_paypal_order(WP_REST_Request $request) {
 
 		// Cancel the pending "please pay" delayed email
 		wp_clear_scheduled_hook('moylgrove_delayed_email', [$id]);
-		$pending = get_transient("moylgrove_pending_email_$id");
 		delete_transient("moylgrove_pending_email_$id");
 
-		// Send paid confirmation using the template stored in the transient
-		if ($pending) {
-			$updated_state                     = $pending['state'];
-			$updated_state['fields']['paid']   = $data['paid'];
-			$updated_state['paid']             = (float)$data['paid'];
-			$price                             = (float)($data['totalPrice'] ?? 0);
-			$updated_state['bookingMode']      = ($updated_state['paid'] >= $price && $price > 0)
-				? MG_BOOKED_STATUS : MG_PAY_STATUS;
-
-			moylgrove_send_email(
-				$pending['email_template'],
-				$updated_state,
-				$pending['post_title'],
-				$pending['post_link'],
-				$pending['place'],
-				$pending['bcc']
-			);
-		}
 	}
 
 	return rest_ensure_response(['success' => true]);

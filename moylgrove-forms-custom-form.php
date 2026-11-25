@@ -192,7 +192,28 @@ function moylgrove_form_shortcode($attributes = [], $content = null)
 
       moylgrove_print_form($template, $state, $name, $id, $seats, $submit, $full, $prices);
 	  $bookingMode = $state['bookingMode'];
-      if ($isBooking && ($bookingMode == MG_BOOKED_STATUS || $bookingMode == MG_CANCELLED_STATUS)) {
+      if (!empty($state['fields']['confirm_due'])) {
+        // A payment was captured since the last page view (the capture handler set this flag
+        // and the page has just reloaded): send the payment confirmation, once.
+        // Clear the flag first so a refresh or a second tab can't send it again.
+        $paidData = $state['fields'];
+        unset($paidData['confirm_due']);
+        $wpdb->replace($table_name, [
+          'id' => $id,
+          'time' => current_time('mysql'),
+          'name' => $name,
+          'text' => json_encode($paidData),
+        ]);
+        $state['fields'] = $paidData;
+        moylgrove_send_email(
+          $email_template,
+          $state,
+          get_the_title($current_post),
+          moylgrove_booking_link(get_permalink($current_post), $id, $state['fields']),
+          "Moylgrove Old School Hall",
+          $bcc
+        );
+      } elseif ($isBooking && ($bookingMode == MG_BOOKED_STATUS || $bookingMode == MG_CANCELLED_STATUS)) {
         // Free event (no payment needed) or cancellation: send immediately.
         moylgrove_send_email(
           $email_template,
